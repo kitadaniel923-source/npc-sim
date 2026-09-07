@@ -12,7 +12,7 @@
     {id:'brave_aggressive',traits:['brave','aggressive'],title:'Warrior',action:'Seeks dangerous fights and martial careers.',effects:{combat:1.4,status:.5},chance:.25},
     {id:'cowardly_intelligent',traits:['cowardly'],requires:n=>(n.education||0)>=55,title:'Calculated Survivor',action:'Avoids dangerous situations and chooses safer paths.',effects:{health:.4,fortune:.4},chance:.28},
     {id:'creative_intelligent',traits:['creative'],requires:n=>(n.education||0)>=60,title:'Inventor',action:'Spends time experimenting and developing inventions.',effects:{education:1.2,wealth:1.1,reputation:.5},chance:.18},
-    {id:'lazy_wealthy',traits:['lazy'],requires:n=>(n.wealth||0)>=120,title:'Heir',action:'Lives comfortably from inherited or accumulated wealth.',effects:{mood:.8,wealth:.7,work:-.4},chance:.3},
+    {id:'lazy_wealthy',traits:['lazy'],requires:n=>(n.wealth||0)>=120,title:'Idle Aristocrat',action:'Lives comfortably from inherited or accumulated wealth while avoiding hard work.',effects:{mood:.8,wealth:.7,work:-.4},chance:.3},
     {id:'poor_ambitious',traits:['ambitious'],requires:n=>(n.wealth||0)<12,title:'Hungry Aspirant',action:'Seeks risky routes out of poverty.',effects:{wealth:1.1,crime:.7,influence:.4},chance:.25},
     {id:'jealous_romantic',traits:['jealous','romantic'],title:'Jealous Lover',action:'Becomes possessive and creates relationship drama.',effects:{mood:-.5,grievance:.7},chance:.22},
     {id:'loyal_brave',traits:['loyal','brave'],title:'Elite Soldier',action:'Protects comrades and earns military trust.',effects:{combat:1.2,army:1,reputation:.5},chance:.25},
