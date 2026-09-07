@@ -203,7 +203,7 @@
     if(!k)return;
     n.successionClaim=clamp(n.successionClaim + (has(n,'royal_blood')?1.5:0) + (has(n,'strong_claim')?1:0) - (has(n,'weak_claim')?.2:0),0,100);
     if(n.successionClaim>72&&has(n,'ambitious'))add(n,'succession_claimant');
-    if(n.successionClaim>85&&has(n,'rebellious')||has(n,'rebel'))add(n,'strong_claim');
+    if(n.successionClaim>85&&(has(n,'rebellious')||has(n,'rebel')))add(n,'strong_claim');
   }
 
   function inheritOnDeath(dead){
@@ -257,23 +257,32 @@
     add(n,t);
     n.traitHistory.unshift({year:state.year,type:'learning',text:`learned ${t.replaceAll('_',' ')}.`,traits:[t]});
     n.traitHistory=n.traitHistory.slice(0,16);
+    n.lastAction=`Learned ${t.replaceAll('_',' ')}`;
   }
 
-  function lifeStep(n){
-    ensureBase(n);
-    eventTraitDevelopment(n);
-    needsDevelopment(n);
-    relationshipStep(n);
-    economyStep(n);
-    combatStep(n);
-    learnStep(n);
-    nobilityStep(n);
+  function dynastyHistory(n){
+    const f=family(n); if(!f)return;
+    f.legacy=(f.legacy||0)+.02;
+    f.reputation=clamp((f.reputation||50)+(n.reputation-50)*.0004);
+    if(n.alive===false)f.deadMembers=(f.deadMembers||0)+1;
   }
 
-  function tick(){
+  function step(){
     birthSync();
-    for(const n of alive())lifeStep(n);
+    for(const n of alive()){
+      ensureBase(n);
+      eventTraitDevelopment(n);
+      needsDevelopment(n);
+      relationshipStep(n);
+      economyStep(n);
+      combatStep(n);
+      learnStep(n);
+      nobilityStep(n);
+      dynastyHistory(n);
+    }
   }
 
-  window.EVERGLEN_LIFE_ENGINE={tick,inheritTraits,marriageCompatibility,socialCompatibility};
+  window.EVERGLEN_LIFE_ENGINE={step,inheritTraits,socialCompatibility,marriageCompatibility};
+  setInterval(()=>{try{step()}catch(e){console.error('Life engine:',e)}},900);
+  setTimeout(()=>{try{step()}catch(e){console.error('Life engine:',e)}},300);
 })();
