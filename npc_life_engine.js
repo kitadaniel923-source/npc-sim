@@ -190,7 +190,6 @@
     if(role==='king'||role==='emperor')add(n,'royal_blood');
     if(role==='heir'){
       add(n,'legitimate_heir');
-      add(n,'favored_heir');
     }
     if((n.status||0)>78)add(n,'prestigious');
     if((n.status||0)>88)add(n,'influential');
@@ -209,9 +208,11 @@
   function inheritOnDeath(dead){
     const f=family(dead); if(!f)return;
     const heirs=alive().filter(x=>x.familyId===dead.familyId && x.id!==dead.id).sort((a,b)=>{
-      const ca=(a.childrenIds||[]).includes(dead.id)?2:0;
-      const cb=(b.childrenIds||[]).includes(dead.id)?2:0;
-      return cb-ca || (b.status||0)-(a.status||0) || b.age-a.age;
+      const ca=(dead.childrenIds||[]).includes(a.id)?4:0;
+      const cb=(dead.childrenIds||[]).includes(b.id)?4:0;
+      const ga=(a.parentIds||[]).includes(dead.id)?3:0;
+      const gb=(b.parentIds||[]).includes(dead.id)?3:0;
+      return (cb+gb)-(ca+ga) || (b.status||0)-(a.status||0) || b.age-a.age;
     });
     const heir=heirs[0];
     if(heir){
@@ -239,35 +240,64 @@
 
   function combatStep(n){
     if(n.age<14)return;
-    if(has(n,'fearless')||has(n,'brave'))n.combatSkill=clamp(n.combatSkill+.12);
-    if(has(n,'battle_hardened'))n.combatSkill=clamp(n.combatSkill+.08);
-    if(has(n,'veteran'))n.combatSkill=clamp(n.combatSkill+.05);
-    if(has(n,'inexperienced'))n.combatSkill=clamp(n.combatSkill-.04);
-    if(has(n,'tactical_fighter'))n.combatSkill=clamp(n.combatSkill+.1);
-    if(has(n,'marksman')&&n.roleId==='archer')n.combatSkill=clamp(n.combatSkill+.08);
+    if(has(n,'fearless'))n.combatSkill+=.08;
+    if(has(n,'veteran'))n.combatSkill+=.07;
+    if(has(n,'battle_hardened'))n.combatSkill+=.05;
+    if(has(n,'tactical_fighter'))n.combatSkill+=.06;
+    if(has(n,'inexperienced')&&Math.random()<.01)n.combatSkill=Math.max(0,n.combatSkill-.1);
+    if(state.war && has(n,'cowardly')){n.goal='Avoid the front';n.mood=clamp((n.mood||50)-.2);}
+    if(state.war && (has(n,'aggressive')||has(n,'brave'))){n.goal='Seek battle';n.combatSkill+=.06;}
   }
 
-  function learnStep(n){
-    if(n.age<8)return;
-    const chance=.003 + (has(n,'curious')?.004:0) + (has(n,'creative')?.002:0);
-    if(Math.random()>chance)return;
-    const options=[...LEARNABLE].filter(t=>TRAITS[t]&&!has(n,t));
-    if(!options.length)return;
-    const t=options[Math.floor(Math.random()*options.length)];
-    add(n,t);
-    n.traitHistory.unshift({year:state.year,type:'learning',text:`learned ${t.replaceAll('_',' ')}.`,traits:[t]});
-    n.traitHistory=n.traitHistory.slice(0,16);
-    n.lastAction=`Learned ${t.replaceAll('_',' ')}`;
+  function intelligenceStep(n){
+    if(has(n,'genius'))n.education=clamp((n.education||0)+.05,0,100);
+    if(has(n,'smart')||has(n,'logical'))n.education=clamp((n.education||0)+.035,0,100);
+    if(has(n,'slow')||has(n,'forgetful'))n.education=clamp((n.education||0)-.012,0,100);
+    if(has(n,'focused'))n.education=clamp((n.education||0)+.02,0,100);
+    if(has(n,'distractible'))n.education=clamp((n.education||0)-.018,0,100);
+    if(has(n,'observant'))n.suspicion=clamp((n.suspicion||0)+.02,0,100);
   }
 
-  function dynastyHistory(n){
-    const f=family(n); if(!f)return;
-    f.legacy=(f.legacy||0)+.02;
-    f.reputation=clamp((f.reputation||50)+(n.reputation-50)*.0004);
-    if(n.alive===false)f.deadMembers=(f.deadMembers||0)+1;
+  function civilizationStep(){
+    for(const k of state.kingdoms||[]){
+      const people=alive().filter(n=>n.faction===k.id);
+      if(!people.length)continue;
+      let productivity=0,peace=0,war=0,learning=0,crime=0;
+      for(const n of people){
+        productivity += (has(n,'hardworking')?2:0)+(has(n,'disciplined')?1.5:0)+(has(n,'builder')?1:0);
+        peace += (has(n,'calm')?1.5:0)+(has(n,'peacemaker')?2:0)+(has(n,'cooperative')?1:0);
+        war += (has(n,'veteran')?1.5:0)+(has(n,'strategic')?1:0)+(has(n,'aggressive')?1:0);
+        learning += (has(n,'genius')?2:0)+(has(n,'scholarly')?1.5:0)+(has(n,'creative')?1:0);
+        crime += (has(n,'criminal')?2:0)+(has(n,'deceptive')?1:0)+(has(n,'cruel')?1:0);
+      }
+      const size=Math.max(1,people.length);
+      k.stability=clamp((k.stability||70)+((peace-crime)/size)*.08+(state.war?-0.02:0));
+      k.power=Math.max(0,(k.power||20)+(productivity/size)*.025+(war/size)*.02+(learning/size)*.018);
+      k.treasury=Math.max(0,(k.treasury||0)+(productivity/size)*.12-(crime/size)*.04);
+      k.politics=k.politics||{nobles:20,merchants:20,commons:50,clergy:10,army:0};
+      k.politics.nobles=clamp(20+(people.filter(n=>has(n,'noble_born')).length/size)*60,0,100);
+    }
+  }
+
+  function dynastyHistory(){
+    if(!state._lifeHistory)state._lifeHistory=[];
+    const events=state._lifeHistory;
+    for(const n of alive()){
+      const combo=n.lastTraitCombo;
+      if(combo && (!n._loggedCombo || n._loggedCombo!==combo.id)){
+        events.unshift({year:state.year,npc:n.name,type:'trait',text:`${n.name} became known as ${combo.title}.`});
+        n._loggedCombo=combo.id;
+      }
+      if(n.roleId==='king' && n._lastLoggedRole!=='king'){
+        events.unshift({year:state.year,npc:n.name,type:'ruler',text:`${n.name} became ruler of ${kingdom(n)?.name||'the realm'}.`});
+        n._lastLoggedRole='king';
+      }
+    }
+    state._lifeHistory=events.slice(0,120);
   }
 
   function step(){
+    if(!state.running)return;
     birthSync();
     for(const n of alive()){
       ensureBase(n);
@@ -276,13 +306,16 @@
       relationshipStep(n);
       economyStep(n);
       combatStep(n);
-      learnStep(n);
+      intelligenceStep(n);
       nobilityStep(n);
-      dynastyHistory(n);
     }
+    civilizationStep();
+    dynastyHistory();
   }
 
-  window.EVERGLEN_LIFE_ENGINE={step,inheritTraits,socialCompatibility,marriageCompatibility};
-  setInterval(()=>{try{step()}catch(e){console.error('Life engine:',e)}},900);
-  setTimeout(()=>{try{step()}catch(e){console.error('Life engine:',e)}},300);
+  window.EVERGLEN_LIFE_ENGINE={step,inheritTraits,socialCompatibility,marriageCompatibility,inheritOnDeath};
+  window.EVERGLEN_HISTORY=state._lifeHistory||[];
+
+  setInterval(()=>{ if(state.running) step(); },1200);
+  step();
 })();
