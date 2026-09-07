@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hearthmere Town Simulator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Autonomous life simulation</p>
+          <h1>Hearthmere</h1>
+        </div>
+        <div class="controls" aria-label="Simulation controls">
+          <button id="toggleSim" class="primary">Pause Simulation</button>
+          <button data-event="festival">Festival</button>
+          <button data-event="rain">Rain</button>
+          <button data-event="market">Market Rush</button>
+          <button data-event="outage">Power Outage</button>
+          <button data-event="reset" class="danger">Reset</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="status-panel">
+          <div class="panel">
+            <h2>Town Pulse</h2>
+            <div class="stat-row">
+              <span>Time</span>
+              <strong id="clock">08:00</strong>
+            </div>
+            <div class="stat-row">
+              <span>Weather</span>
+              <strong id="weather">Clear</strong>
+            </div>
+            <div class="stat-row">
+              <span>Mood</span>
+              <strong id="mood">Busy</strong>
+            </div>
+            <div class="stat-row">
+              <span>Population</span>
+              <strong id="population">18</strong>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>NPC Activity</h2>
+            <div id="npcSummary" class="mini-list"></div>
+          </div>
+
+          <div class="panel feed-panel">
+            <h2>Event Feed</h2>
+            <ul id="eventFeed"></ul>
+          </div>
+        </aside>
+
+        <section class="map-panel">
+          <div id="townMap" class="town-map" aria-label="Stylized town map">
+            <div class="road horizontal r1"></div>
+            <div class="road horizontal r2"></div>
+            <div class="road vertical v1"></div>
+            <div class="road vertical v2"></div>
+
+            <div class="zone homes">Homes</div>
+            <div class="zone market">Market</div>
+            <div class="zone townhall">Town Hall</div>
+            <div class="zone park">Park</div>
+            <div class="zone docks">Docks</div>
+            <div class="zone workshop">Workshop</div>
+            <div class="zone school">School</div>
+            <div class="zone square">Square</div>
+
+            <div id="npcLayer" class="npc-layer"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
