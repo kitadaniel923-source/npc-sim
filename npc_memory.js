@@ -1,28 +1,185 @@
 (() => {
   const state = window.SIM_STATE;
   if (!state) return;
-  const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
-  const alive=()=>state.npcs.filter(n=>n.alive);
-  function ensure(n){n.memories=Array.isArray(n.memories)?n.memories:[];n.memoryIndex=n.memoryIndex||{};n.grievance=n.grievance||0}
-  function remember(n,text,type='event',importance=1,targetId=null){
-    ensure(n); const key=`${state.year}:${type}:${text}`;
-    if(n.memoryIndex[key]) return;
-    const m={id:`m_${Date.now()}_${Math.random().toString(36).slice(2)}`,year:state.year,day:state.day,type,text,importance,targetId};
-    n.memories.unshift(m); n.memories=n.memories.sort((a,b)=>(b.importance-a.importance)||(b.year-a.year)).slice(0,24); n.memoryIndex[key]=1;
+
+  const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
+  const alive = () => state.npcs.filter(n=>n.alive);
+  const YEAR_LENGTH = 30;
+
+  const EMOTION = {
+    joy:  { mood: 1.2, trust: 0.8, fear: -0.2, grievance: -0.5 },
+    trust:{ mood: 0.6, trust: 1.2, fear: -0.4, grievance: -0.8 },
+    fear: { mood: -0.8, trust: -0.9, fear: 1.5, grievance: 0.4 },
+    anger:{ mood: -0.7, trust: -1.0, fear: 0.1, grievance: 1.5 },
+    grief:{ mood: -1.0, trust: -0.2, fear: 0.4, grievance: 1.0 },
+    pride:{ mood: 0.7, trust: 0.2, fear: -0.1, grievance: -0.2 }
+  };
+
+  function ensure(n){
+    n.memories = Array.isArray(n.memories) ? n.memories : [];
+    n.memoryIndex = n.memoryIndex || {};
+    n.grievance = n.grievance || 0;
+    n.emotionalMemory = n.emotionalMemory || {joy:0,trust:0,fear:0,anger:0,grief:0,pride:0};
+    n.trustMap = n.trustMap || {};
+    n.fearMap = n.fearMap || {};
+    n.grudgeMap = n.grudgeMap || {};
   }
+
+  function yearsAgo(m){ return Math.max(0, state.year - (m.year || state.year)); }
+  function effectiveImportance(m){
+    const age = yearsAgo(m);
+    const decay = m.permanent ? 1 : Math.max(0.18, 1 - age * (m.importance >= 3 ? 0.035 : 0.075));
+    return (m.importance || 1) * decay;
+  }
+
+  function indexKey(type,text,targetId){ return `${type}:${targetId||''}:${text}`; }
+
+  function remember(n,text,type='event',importance=1,targetId=null,emotion='neutral',permanent=false){
+    ensure(n);
+    const key=indexKey(type,text,targetId);
+    if(n.memoryIndex[key]) return n.memories.find(m=>m.key===key) || null;
+    const m={
+      id:`m_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      key,
+      year:state.year,
+      day:state.day,
+      type,
+      text,
+      importance:clamp(importance,0.1,5),
+      targetId,
+      emotion,
+      permanent:!!permanent,
+      lastRecall:state.tick,
+      recalls:0,
+      consequence:0
+    };
+    n.memories.unshift(m);
+    n.memoryIndex[key]=m.id;
+    n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));
+    n.memories=n.memories.slice(0,40);
+    return m;
+  }
+
+  function strengthen(n,m,amount=0.5){
+    if(!m) return;
+    m.importance=clamp((m.importance||1)+amount,0.1,5);
+    m.lastRecall=state.tick;
+    m.recalls=(m.recalls||0)+1;
+    n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));
+  }
+
+  function relationDelta(n,targetId,trustDelta=0,grudgeDelta=0,fearDelta=0){
+    ensure(n);
+    if(!targetId) return;
+    n.trustMap[targetId]=clamp((n.trustMap[targetId]||0)+trustDelta,-100,100);
+    n.grudgeMap[targetId]=clamp((n.grudgeMap[targetId]||0)+grudgeDelta,0,100);
+    n.fearMap[targetId]=clamp((n.fearMap[targetId]||0)+fearDelta,0,100);
+  }
+
+  function applyEmotion(n,emotion,power=1){
+    ensure(n);
+    const e=EMOTION[emotion];
+    if(!e) return;
+    Object.entries(e).forEach(([k,v])=>{
+      if(k==='grievance') n.grievance=clamp(n.grievance+v*power);
+      else n.emotionalMemory[k]=clamp((n.emotionalMemory[k]||0)+v*power,-100,100);
+    });
+    n.mood=clamp((n.mood??65)+(e.mood||0)*power);
+  }
+
+  function experience(n,text,type,importance,targetId,emotion='neutral',consequence=0,permanent=false){
+    ensure(n);
+    const m=remember(n,text,type,importance,targetId,emotion,permanent);
+    if(!m) return;
+    m.consequence=consequence;
+    applyEmotion(n,emotion,Math.max(0.5,importance/2));
+    if(targetId && consequence){
+      if(consequence>0) relationDelta(n,targetId,-consequence,consequence*1.2,emotion==='fear'?consequence:0);
+      else relationDelta(n,targetId,-consequence,0,0);
+    }
+    return m;
+  }
+
+  function recall(n,targetId,type=null){
+    ensure(n);
+    return n.memories
+      .filter(m=>(!targetId||m.targetId===targetId)&&(!type||m.type===type))
+      .sort((a,b)=>effectiveImportance(b)-effectiveImportance(a))[0] || null;
+  }
+
+  function trust(n,targetId){ ensure(n); return clamp(50+(n.trustMap[targetId]||0)-((n.fearMap[targetId]||0)*0.35)-(n.grudgeMap[targetId]||0)*0.15,0,100); }
+  function fear(n,targetId){ ensure(n); return clamp(n.fearMap[targetId]||0,0,100); }
+  function grudge(n,targetId){ ensure(n); return clamp(n.grudgeMap[targetId]||0,0,100); }
+
   function observe(n){
     ensure(n);
-    if(n.partnerId){const p=state.npcs.find(x=>x.id===n.partnerId);if(p?.alive)remember(n,`${p.name} is my partner.`,'relationship',2,p.id)}
-    if(n.familyId){const f=state.families.find(x=>x.id===n.familyId);if(f)remember(n,`I belong to ${f.name}.`,'family',1.5,f.id)}
-    if(state.war) remember(n,'The realm is at war.','war',1.5);
-    if(state.plague) remember(n,'A plague is spreading.','disaster',1.5);
-    if(n.grievance>45) remember(n,'I carry an unresolved grievance.','grievance',2);
-    if(n.crimes>0) remember(n,`I have committed ${n.crimes} crime${n.crimes>1?'s':''}.`,'crime',1.8);
-    const enemies=(n.relations||[]).filter(r=>r.score<-50).slice(0,3);
-    enemies.forEach(r=>{const x=state.npcs.find(p=>p.id===r.targetId);if(x)remember(n,`${x.name} is someone I distrust.`,'enemy',2,x.id)});
+    if(n.partnerId){
+      const p=state.npcs.find(x=>x.id===n.partnerId);
+      if(p?.alive) remember(n,`${p.name} is my partner.`,'relationship',2,p.id,'trust',true);
+    }
+    if(n.familyId){
+      const f=state.families.find(x=>x.id===n.familyId);
+      if(f) remember(n,`I belong to ${f.name}.`,'family',1.5,f.id,'pride',true);
+    }
+    if(state.war) experience(n,'I lived through a time of war.','war',1.8,null,'fear',0);
+    if(state.plague) experience(n,'A plague threatened people around me.','disaster',1.8,null,'fear',0);
+    if(n.grievance>45) remember(n,'I carry an unresolved grievance.','grievance',2,null,'anger',1.5);
+    if(n.crimes>0) remember(n,`I have committed ${n.crimes} crime${n.crimes>1?'s':''}.`,'crime',1.8,null,'pride');
+    const enemies=(n.relations||[]).filter(r=>r.score<-50).slice(0,4);
+    enemies.forEach(r=>{
+      const x=state.npcs.find(p=>p.id===r.targetId);
+      if(x) experience(n,`${x.name} has earned my distrust.`,'enemy',2.2,x.id,'anger',3);
+    });
   }
+
   function consequence(n,delta,reason,target){
-    ensure(n); n.grievance=clamp(n.grievance+(delta||0)); if(Math.abs(delta||0)>=5)remember(n,reason,'consequence',Math.min(3,Math.abs(delta)/4),target?.id||null);
+    ensure(n);
+    n.grievance=clamp(n.grievance+(delta||0));
+    if(Math.abs(delta||0)<2) return;
+    const emotion=delta>0?'anger':'trust';
+    experience(n,reason,'consequence',Math.min(4,Math.abs(delta)/3),target?.id||null,emotion,Math.abs(delta)/5);
   }
-  window.NPC_MEMORY={ensure,remember,observe,consequence};
+
+  function sharedEvent(a,b,text,type,importance=1,positive=true){
+    if(!a||!b) return;
+    const targetForA=b.id,targetForB=a.id;
+    const emotion=positive?'trust':'anger';
+    const c=positive?-Math.min(12,importance*2):Math.min(12,importance*2);
+    experience(a,text,type,importance,targetForA,emotion,c);
+    experience(b,text,type,importance,targetForB,emotion,c);
+  }
+
+  function processMemoryConsequences(n){
+    ensure(n);
+    if(state.tick%12!==0) return;
+    const strong=n.memories
+      .filter(m=>effectiveImportance(m)>2.2)
+      .slice(0,8);
+    strong.forEach(m=>{
+      const target=m.targetId ? state.npcs.find(x=>x.id===m.targetId) : null;
+      if(!target) return;
+      if(m.consequence>0){
+        n.grievance=clamp(n.grievance+m.consequence*.015);
+        n.grudgeMap[target.id]=clamp((n.grudgeMap[target.id]||0)+m.consequence*.01,0,100);
+      }else if(m.consequence<0){
+        n.trustMap[target.id]=clamp((n.trustMap[target.id]||0)+Math.abs(m.consequence)*.01,-100,100);
+      }
+      m.lastRecall=state.tick;
+      m.recalls=(m.recalls||0)+1;
+    });
+    n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));
+    if(n.memories.length>40) n.memories.length=40;
+  }
+
+  function step(){
+    if(!state.running) return;
+    alive().forEach(n=>{observe(n);processMemoryConsequences(n);});
+  }
+
+  window.NPC_MEMORY={
+    ensure,remember,observe,consequence,experience,recall,trust,fear,grudge,sharedEvent,strengthen,step
+  };
+
+  if(state.registerSystem) state.registerSystem({name:'memory',step,priority:70});
+  else setInterval(step,1200);
 })();
