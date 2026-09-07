@@ -41,7 +41,7 @@
   function interact(a,b,context='neutral',intensity=1){
     if(!a||!b||!a.alive||!b.alive||a.id===b.id)return null;
     const r=get(a,b),q=get(b,a),base=compatibility(a,b);
-    const rememberedTrust=trustValue(a,b.id,r),targetTrust=trustValue(b,a.id,q);
+    const rememberedTrust=trustValue(a,b.id,r);
     let delta=base*.025*intensity;
     if(context==='help')delta+=score(a,'kindness')*.05;
     if(context==='trade')delta+=(score(a,'cleverness')||50)*.025+score(a,'sociability')*.02;
@@ -123,5 +123,5 @@
   }
 
   window.NPC_RELATIONSHIPS={get,compatibility,interact,socialEvent,formFriendships,step,trustValue};
-  if(state.registerSystem)state.registerSystem({name:'relationships',step,priority:60});
+  if(state.registerSystem)state.registerSystem(step);
 })();
