@@ -74,39 +74,29 @@ window.assignEmergentRoles = function assignEmergentRoles(npcs, settlements, sim
 
 window.roleDescription = id => window.ROLE_BY_ID[id] || window.ROLE_BY_ID.citizen;
 
-// Bridge the role library into the existing simulator without making the core engine depend on it.
-// It assigns professions immediately and re-evaluates social/military/magic titles periodically.
 (function connectRoleSystem(){
-  let ticks=0;
-  const timer=setInterval(()=>{
-    try{
-      if(typeof state==='undefined' || typeof renderAll!=='function') return;
-      if(!state.npcs?.length) return;
-      if(ticks++%4===0) window.assignEmergentRoles(state.npcs, typeof SETTLEMENTS!=='undefined'?SETTLEMENTS:[], state);
-      // Role-driven behavior: push NPCs toward jobs that match their identities.
-      state.npcs.filter(n=>n.alive).forEach(n=>{
-        const r=window.roleDescription(n.roleId);
-        if(!r) return;
-        if(r.id==='farmer'||r.id==='rancher'||r.id==='forager'){n.job='farmer';}
-        else if(['blacksmith','armorer','carpenter','mason','builder','engineer','shipwright'].includes(r.id)){n.job='builder';}
-        else if(['merchant','trader','peddler','shopkeeper','innkeeper'].includes(r.id)){n.job='merchant';}
-        else if(['healer','doctor','herbalist'].includes(r.id)){n.job='healer';}
-        else if(['soldier','archer','spearman','cavalry','knight','paladin','ranger','captain','general','marshal','bodyguard'].includes(r.id)){n.job='guard';}
-        else if(['cleric','priest','high_priest','monk','oracle','mage','wizard','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id)){n.job='scholar';}
-        else if(['thief','pickpocket','burglar','bandit','assassin','smuggler','spy','informant'].includes(r.id)){n.job='merchant';}
-        if(['king','queen','duke','archduke','count','governor','mayor','emperor','empress','prince','princess'].includes(r.id)) n.goal='Govern';
-        if(['thief','pickpocket','burglar','bandit','assassin','smuggler'].includes(r.id)&&Math.random()<.08)n.goal='Steal';
-        if(['cleric','priest','high_priest','monk','oracle'].includes(r.id)&&Math.random()<.08)n.goal='Pray';
-        if(['wizard','mage','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id)&&Math.random()<.08)n.goal='Study magic';
-        if(['knight','paladin','captain','general','marshal'].includes(r.id)&&state.war)n.goal='Command army';
-      });
-      if(state.selected){const selected=state.npcs.find(n=>n.id===state.selected);if(selected&&elements?.inspectorContent?.innerHTML){
-        const title=selected.roleName||selected.job||'Citizen';
-        const marker=`<div class="goal"><b>Role:</b> ${title}<br><span>${selected.roleDescription||''}</span></div>`;
-        if(!elements.inspectorContent.innerHTML.includes('Role:')) elements.inspectorContent.innerHTML=elements.inspectorContent.innerHTML.replace(/(<\/div>\s*<div class="goal">)/,`$1${marker}`);
-      }}
-      renderAll();
-    }catch(e){/* role layer should never stop the core simulation */}
-  },1000);
-  window.stopRoleSystem=()=>clearInterval(timer);
+  function step(){
+    if(!window.SIM_STATE?.running)return;
+    const state=window.SIM_STATE;
+    if(!state.npcs?.length)return;
+    if(state.tick%4===0)window.assignEmergentRoles(state.npcs,state.settlements||[],state);
+    state.npcs.filter(n=>n.alive).forEach(n=>{
+      const r=window.roleDescription(n.roleId);
+      if(!r)return;
+      if(['farmer','rancher','forager'].includes(r.id))n.job='farmer';
+      else if(['blacksmith','armorer','carpenter','mason','builder','engineer','shipwright'].includes(r.id))n.job='builder';
+      else if(['merchant','trader','peddler','shopkeeper','innkeeper'].includes(r.id))n.job='merchant';
+      else if(['healer','doctor','herbalist'].includes(r.id))n.job='healer';
+      else if(['soldier','archer','spearman','cavalry','knight','paladin','ranger','captain','general','marshal','bodyguard'].includes(r.id))n.job='guard';
+      else if(['cleric','priest','high_priest','monk','oracle','mage','wizard','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id))n.job='scholar';
+      else if(['thief','pickpocket','burglar','bandit','assassin','smuggler','spy','informant'].includes(r.id))n.job='merchant';
+      if(['king','queen','duke','archduke','count','governor','mayor','emperor','empress','prince','princess'].includes(r.id)) n.goal='Govern';
+      if(['thief','pickpocket','burglar','bandit','assassin','smuggler'].includes(r.id)&&Math.random()<.08)n.goal='Steal';
+      if(['cleric','priest','high_priest','monk','oracle'].includes(r.id)&&Math.random()<.08)n.goal='Pray';
+      if(['wizard','mage','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id)&&Math.random()<.08)n.goal='Study magic';
+      if(['knight','paladin','captain','general','marshal'].includes(r.id)&&state.war)n.goal='Command army';
+    });
+  }
+  window.ROLE_SYSTEM_STEP=step;
+  if(window.SIM_API?.registerSystem)window.SIM_API.registerSystem({name:'roles',step,priority:50});
 })();
