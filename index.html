@@ -19,6 +19,23 @@
       <aside class="side right-side"><div class="panel inspector"><div class="panel-title"><h2>Inspector</h2><button id="closeInspector">×</button></div><div id="inspectorContent" class="inspector-content"><div class="empty-state">Select an NPC to inspect their life, family, clan, role and inheritance.</div></div></div><div class="panel"><div class="panel-title"><h2>Needs</h2><span id="selectedNeedMood">No selection</span></div><div id="needsChart" class="needs-chart"></div></div><div class="panel"><div class="panel-title"><h2>Simulation Log</h2><span id="tickLabel">tick 0</span></div><div id="microLog" class="micro-log"></div></div></aside>
     </main>
   </div>
-  <script src="social_bootstrap.js"></script>
+
+  <!-- Production dependency order. social_bootstrap.js is intentionally not loaded. -->
+  <script src="simulation.js"></script>
+  <script src="logistics.js"></script>
+  <script src="trait_expansion.js"></script>
+  <script src="social_traits.js"></script>
+  <script src="social_combinations.js"></script>
+  <script src="npc_life_engine.js"></script>
+  <script src="npc_needs.js"></script>
+  <script src="npc_memory.js"></script>
+  <script src="npc_decisions.js"></script>
+  <script src="npc_behavior.js"></script>
+  <script src="world_generation.js"></script>
+  <script src="npc_visuals.js"></script>
+  <script src="art_2d.js"></script>
+  <script src="social_ui.js"></script>
+  <script src="interaction_fix.js"></script>
+  <script src="spawn_system.js"></script>
 </body>
 </html>
