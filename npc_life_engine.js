@@ -102,7 +102,7 @@
     child.trait=child.traits[0];
     const f=family(child);
     if(f){
-      f.bloodlineTraits=[...new Set([...(f.bloodlineTraits||[]),...child.traits.filter(t=>GENETIC.has(t)))].slice(0,12)];
+      f.bloodlineTraits=[...new Set([...(f.bloodlineTraits||[]),...child.traits.filter(t=>GENETIC.has(t))])].slice(0,12);
     }
     child._traitsInherited=true;
   }
@@ -239,82 +239,41 @@
 
   function combatStep(n){
     if(n.age<14)return;
-    if(has(n,'fearless'))n.combatSkill+=.08;
-    if(has(n,'veteran'))n.combatSkill+=.07;
-    if(has(n,'battle_hardened'))n.combatSkill+=.05;
-    if(has(n,'tactical_fighter'))n.combatSkill+=.06;
-    if(has(n,'inexperienced')&&Math.random()<.01)n.combatSkill=Math.max(0,n.combatSkill-.1);
-    if(state.war && has(n,'cowardly')){n.goal='Avoid the front';n.mood=clamp((n.mood||50)-.2);}
-    if(state.war && (has(n,'aggressive')||has(n,'brave'))){n.goal='Seek battle';n.combatSkill+=.06;}
+    if(has(n,'fearless')||has(n,'brave'))n.combatSkill=clamp(n.combatSkill+.12);
+    if(has(n,'battle_hardened'))n.combatSkill=clamp(n.combatSkill+.08);
+    if(has(n,'veteran'))n.combatSkill=clamp(n.combatSkill+.05);
+    if(has(n,'inexperienced'))n.combatSkill=clamp(n.combatSkill-.04);
+    if(has(n,'tactical_fighter'))n.combatSkill=clamp(n.combatSkill+.1);
+    if(has(n,'marksman')&&n.roleId==='archer')n.combatSkill=clamp(n.combatSkill+.08);
   }
 
-  function intelligenceStep(n){
-    if(has(n,'genius'))n.education=clamp((n.education||0)+.05,0,100);
-    if(has(n,'smart')||has(n,'logical'))n.education=clamp((n.education||0)+.035,0,100);
-    if(has(n,'slow')||has(n,'forgetful'))n.education=clamp((n.education||0)-.012,0,100);
-    if(has(n,'focused'))n.education=clamp((n.education||0)+.02,0,100);
-    if(has(n,'distractible'))n.education=clamp((n.education||0)-.018,0,100);
-    if(has(n,'observant'))n.suspicion=clamp((n.suspicion||0)+.02,0,100);
+  function learnStep(n){
+    if(n.age<8)return;
+    const chance=.003 + (has(n,'curious')?.004:0) + (has(n,'creative')?.002:0);
+    if(Math.random()>chance)return;
+    const options=[...LEARNABLE].filter(t=>TRAITS[t]&&!has(n,t));
+    if(!options.length)return;
+    const t=options[Math.floor(Math.random()*options.length)];
+    add(n,t);
+    n.traitHistory.unshift({year:state.year,type:'learning',text:`learned ${t.replaceAll('_',' ')}.`,traits:[t]});
+    n.traitHistory=n.traitHistory.slice(0,16);
   }
 
-  function civilizationStep(){
-    for(const k of state.kingdoms||[]){
-      const people=alive().filter(n=>n.faction===k.id);
-      if(!people.length)continue;
-      let productivity=0,peace=0,war=0,learning=0,crime=0;
-      for(const n of people){
-        productivity += (has(n,'hardworking')?2:0)+(has(n,'disciplined')?1.5:0)+(has(n,'builder')?1:0);
-        peace += (has(n,'calm')?1.5:0)+(has(n,'peacemaker')?2:0)+(has(n,'cooperative')?1:0);
-        war += (has(n,'veteran')?1.5:0)+(has(n,'strategic')?1:0)+(has(n,'aggressive')?1:0);
-        learning += (has(n,'genius')?2:0)+(has(n,'scholarly')?1.5:0)+(has(n,'creative')?1:0);
-        crime += (has(n,'criminal')?2:0)+(has(n,'deceptive')?1:0)+(has(n,'cruel')?1:0);
-      }
-      const size=Math.max(1,people.length);
-      k.stability=clamp((k.stability||70)+((peace-crime)/size)*.08+(state.war?-0.02:0));
-      k.power=Math.max(0,(k.power||20)+(productivity/size)*.025+(war/size)*.02+(learning/size)*.018);
-      k.treasury=Math.max(0,(k.treasury||0)+(productivity/size)*.12-(crime/size)*.04);
-      k.politics=k.politics||{nobles:20,merchants:20,commons:50,clergy:10,army:0};
-      k.politics.nobles=clamp(20+(people.filter(n=>has(n,'noble_born')).length/size)*60,0,100);
-    }
+  function lifeStep(n){
+    ensureBase(n);
+    eventTraitDevelopment(n);
+    needsDevelopment(n);
+    relationshipStep(n);
+    economyStep(n);
+    combatStep(n);
+    learnStep(n);
+    nobilityStep(n);
   }
 
-  function dynastyHistory(){
-    if(!state._lifeHistory)state._lifeHistory=[];
-    const events=state._lifeHistory;
-    for(const n of alive()){
-      const combo=n.lastTraitCombo;
-      if(combo && (!n._loggedCombo || n._loggedCombo!==combo.id)){
-        events.unshift({year:state.year,npc:n.name,type:'trait',text:`${n.name} became known as ${combo.title}.`});
-        n._loggedCombo=combo.id;
-      }
-      if(n.roleId==='king' && n._lastLoggedRole!=='king'){
-        events.unshift({year:state.year,npc:n.name,type:'ruler',text:`${n.name} became ruler of ${kingdom(n)?.name||'the realm'}.`});
-        n._lastLoggedRole='king';
-      }
-    }
-    state._lifeHistory=events.slice(0,120);
-  }
-
-  function step(){
-    if(!state.running)return;
+  function tick(){
     birthSync();
-    for(const n of alive()){
-      ensureBase(n);
-      eventTraitDevelopment(n);
-      needsDevelopment(n);
-      relationshipStep(n);
-      economyStep(n);
-      combatStep(n);
-      intelligenceStep(n);
-      nobilityStep(n);
-    }
-    civilizationStep();
-    dynastyHistory();
+    for(const n of alive())lifeStep(n);
   }
 
-  window.EVERGLEN_LIFE_ENGINE={step,inheritTraits,socialCompatibility,marriageCompatibility,inheritOnDeath};
-  window.EVERGLEN_HISTORY=state._lifeHistory||[];
-
-  setInterval(()=>{ if(state.running) step(); },1200);
-  step();
+  window.EVERGLEN_LIFE_ENGINE={tick,inheritTraits,marriageCompatibility,socialCompatibility};
 })();
