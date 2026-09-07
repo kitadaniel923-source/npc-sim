@@ -1,6 +1,7 @@
 (() => {
   const state=window.SIM_STATE;if(!state)return;
   const personalityApi=window.NPC_PERSONALITY;
+  const planner=window.NPC_PLANNING;
   const role=(n,r)=>n.roleId===r;
   function personality(n){
     if(personalityApi) personalityApi.ensure(n);
@@ -18,6 +19,16 @@
   }
   function choose(n){
     if(!n.alive||n.age<13)return;
+    if(planner){
+      const plan=n.currentPlan||planner.plan(n);
+      const step=planner.nextStep(n);
+      if(plan&&step){
+        n.aiDecision={action:step.action,score:plan.score,at:state.tick,planId:plan.id,targetId:step.targetId||null};
+        n.goal=plan.goal;
+        n.decisionReason=plan.reason;
+        return;
+      }
+    }
     const p=personality(n),q=n.needPressure||{};
     const trait=(t)=>personalityApi?.has(n,t) || n.trait===t;
     const options=[
