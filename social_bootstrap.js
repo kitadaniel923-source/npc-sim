@@ -41,6 +41,7 @@
     await loadScript('npc_life_engine.js');
     await loadScript('world_generation.js');
     await loadScript('npc_visuals.js');
+    await loadScript('art_2d.js');
     await loadScript('social_ui.js');
   } catch (error) {
     console.error('Everglen bootstrap failed:', error);
