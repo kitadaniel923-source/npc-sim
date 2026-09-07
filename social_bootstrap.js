@@ -24,6 +24,7 @@
 
     await loadScript('logistics.js');
     await loadScript('social_traits.js');
+    await loadScript('social_ui.js');
   } catch (error) {
     console.error('Everglen bootstrap failed:', error);
     const banner = document.createElement('div');
