@@ -23,7 +23,20 @@
     document.body.appendChild(simulationScript);
 
     await loadScript('logistics.js');
-    await loadScript('social_traits.js');
+    await loadScript('trait_expansion.js');
+
+    const traitResponse = await fetch('social_traits.js', {cache:'no-store'});
+    if (!traitResponse.ok) throw new Error(`social_traits.js returned ${traitResponse.status}`);
+    const traitSource = await traitResponse.text();
+    const traitMarker = traitSource.indexOf('  const SECONDARIES = {');
+    if (traitMarker < 0) throw new Error('social_traits.js trait merge point not found');
+    const patchedTraits = traitSource.slice(0, traitMarker) +
+      '  Object.assign(TRAIT_PROFILES, window.EVERGLEN_TRAIT_PROFILES || {});\n\n' +
+      traitSource.slice(traitMarker);
+    const traitScript = document.createElement('script');
+    traitScript.textContent = patchedTraits;
+    document.body.appendChild(traitScript);
+
     await loadScript('social_combinations.js');
     await loadScript('social_ui.js');
   } catch (error) {
