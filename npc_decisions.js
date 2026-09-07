@@ -1,11 +1,11 @@
 (() => {
   const state=window.SIM_STATE;if(!state)return;
-  const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
   const personalityApi=window.NPC_PERSONALITY;
   const role=(n,r)=>n.roleId===r;
   function personality(n){
     if(personalityApi) personalityApi.ensure(n);
     return {
+      courage: personalityApi?.score(n,'courage') ?? 50,
       aggression: personalityApi?.score(n,'aggression') ?? 50,
       sociability: personalityApi?.score(n,'sociability') ?? 50,
       risk: personalityApi?.score(n,'risk') ?? 50,
@@ -28,8 +28,8 @@
       ['belong','Visit family',q.belonging+(n.familyId?12:0)],
       ['work','Work as '+(n.roleName||'Citizen'),q.purpose+(p.discipline*.35)],
       ['wealth','Earn wealth',q.wealth+p.ambition*.35],
-      ['safety','Seek safety',q.safety+(state.war?25:0)+(100-p.courage||0)*.05],
-      ['explore','Explore',18+(p.curiosity*.45)],
+      ['safety','Seek safety',q.safety+(state.war?25:0)+(100-p.courage)*.05],
+      ['explore','Explore',18+(p.curiosity*.45)+(p.risk*.15)],
       ['govern','Govern',role(n,'mayor')||role(n,'king')||role(n,'duke')||role(n,'count')?65+p.ambition:0],
       ['train','Train for combat',state.war&&n.age>=16?55+p.aggression*.4:trait('brave')?18+p.courage*.15:0],
       ['study','Study',p.curiosity*.5+(n.education||0)*.1]
