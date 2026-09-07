@@ -38,6 +38,7 @@
     document.body.appendChild(traitScript);
 
     await loadScript('social_combinations.js');
+    await loadScript('npc_life_engine.js');
     await loadScript('social_ui.js');
   } catch (error) {
     console.error('Everglen bootstrap failed:', error);
