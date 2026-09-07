@@ -32,48 +32,81 @@ window.ROLE_LIBRARY = ROLE_LIBRARY;
 window.ALL_ROLES = Object.values(ROLE_LIBRARY).flat().map(([id,name,desc,power])=>({id,name,desc,power}));
 window.ROLE_BY_ID = Object.fromEntries(window.ALL_ROLES.map(r=>[r.id,r]));
 
-window.roleForNpc = function npcRoleFor(npc, index, total){
-  // Keep everyone useful. Most start as common professions; specialist and political roles emerge later.
+window.roleForNpc = function npcRoleFor(npc, index){
   if(npc.roleId) return window.ROLE_BY_ID[npc.roleId] || window.ROLE_BY_ID.citizen;
   if(npc.age < 13) return window.ROLE_BY_ID.child;
   if(npc.age < 18) return window.ROLE_BY_ID.student;
-  const common = ROLE_LIBRARY.professions;
-  const chosen = common[index % common.length];
+  const chosen = ROLE_LIBRARY.professions[index % ROLE_LIBRARY.professions.length];
   return window.ROLE_BY_ID[chosen[0]];
 };
 
-window.assignEmergentRoles = function assignEmergentRoles(npcs, settlements, state){
+window.assignEmergentRoles = function assignEmergentRoles(npcs, settlements, sim){
   const alive=npcs.filter(n=>n.alive);
   alive.forEach((n,i)=>{
-    if(n.age<13){n.roleId='child';n.roleName='Child';n.roleType='civic';return;}
-    if(n.age<18){n.roleId='student';n.roleName='Student';n.roleType='civic';return;}
+    if(n.age<13){n.roleId='child';n.roleName='Child';n.roleDescription='grows and learns';return;}
+    if(n.age<18){n.roleId='student';n.roleName='Student';n.roleDescription='learns a profession';return;}
     if(!n.roleId || ['citizen','unemployed'].includes(n.roleId)){
-      const role=window.roleForNpc(n,i,alive.length);n.roleId=role.id;n.roleName=role.name;n.roleDescription=role.desc;
+      const r=window.roleForNpc(n,i); n.roleId=r.id;n.roleName=r.name;n.roleDescription=r.desc;
     }
   });
 
-  // Political hierarchy emerges from population, ambition and faction power.
   const factionGroups=new Map();
   alive.forEach(n=>{if(!factionGroups.has(n.faction))factionGroups.set(n.faction,[]);factionGroups.get(n.faction).push(n);});
   factionGroups.forEach(group=>{
-    const sorted=[...group].sort((a,b)=>(b.wealth||0)+(b.mood||0)+(b.age||0)*1.4-(a.wealth||0)-(a.mood||0)-(a.age||0)*1.4);
-    const ambitious=[...group].sort((a,b)=>((b.trait==='ambitious'?50:0)+(b.wealth||0)))-0;
-    if(group.length>=12 && sorted[0].age>=25){sorted[0].roleId=group.length>=55?'king':'mayor';sorted[0].roleName=group.length>=55?'King':'Mayor';}
-    if(group.length>=25){sorted.slice(1,3).forEach(n=>{n.roleId=group.length>=55?'duke':'governor';n.roleName=group.length>=55?'Duke':'Governor';});}
-    if(group.length>=14){sorted.slice(3,7).forEach(n=>{n.roleId='count';n.roleName='Count';});}
-    // military titles are assigned to brave adults if enough people exist.
-    const brave=group.filter(n=>['brave','reckless','loyal'].includes(n.trait)&&n.age>=18).sort((a,b)=>(b.health||0)-(a.health||0));
-    const militaryCount=Math.max(1,Math.floor(group.length*.12));
-    brave.slice(0,militaryCount).forEach((n,j)=>{if(!['king','queen','duke','count','governor','mayor'].includes(n.roleId)){n.roleId=j===0&&group.length>=25?'captain':'soldier';n.roleName=window.ROLE_BY_ID[n.roleId].name;}});
-    // Clerics and magical specialists are rare.
-    if(group.length>=10){const candidate=group.find(n=>n.age>=20 && n.trait==='calm');if(candidate&&!['king','duke','count','governor','mayor'].includes(candidate.roleId)){candidate.roleId='cleric';candidate.roleName='Cleric';}}
-    if(group.length>=20){const mage=group.find(n=>n.age>=24&&n.trait==='curious');if(mage&&!['king','duke','count','governor','mayor'].includes(mage.roleId)){mage.roleId='wizard';mage.roleName='Wizard';}}
-    // Criminal roles appear in populations with low stability or high greed.
-    if((state.stability||80)<45||group.some(n=>n.trait==='greedy')){
-      const rogue=group.find(n=>n.age>=18&&n.trait==='greedy');
-      if(rogue&&!['king','duke','count','governor','mayor'].includes(rogue.roleId)){rogue.roleId=Math.random()<.5?'thief':'smuggler';rogue.roleName=window.ROLE_BY_ID[rogue.roleId].name;}
-    }
+    const score=n=>((n.trait==='ambitious'?50:0)+(n.trait==='clever'?20:0)+(n.wealth||0)+(n.age||0)*1.5+(n.mood||0));
+    const sorted=[...group].sort((a,b)=>score(b)-score(a));
+    const titleBlock=['king','queen','emperor','empress','prince','princess','duke','archduke','count','governor','mayor'];
+    if(group.length>=12 && sorted[0].age>=25){const id=group.length>=55?(sorted[0].sex==='F'?'queen':'king'):'mayor';sorted[0].roleId=id;sorted[0].roleName=window.ROLE_BY_ID[id].name;sorted[0].roleDescription=window.ROLE_BY_ID[id].desc;}
+    if(group.length>=25)sorted.slice(1,3).forEach(n=>{const id=group.length>=55?'duke':'governor';if(!titleBlock.includes(n.roleId)||n===sorted[0]){n.roleId=id;n.roleName=window.ROLE_BY_ID[id].name;n.roleDescription=window.ROLE_BY_ID[id].desc;}});
+    if(group.length>=14)sorted.slice(3,7).forEach(n=>{if(!titleBlock.includes(n.roleId)){n.roleId='count';n.roleName='Count';n.roleDescription='rules a county';}});
+
+    const brave=group.filter(n=>n.age>=18&&['brave','reckless','loyal'].includes(n.trait)).sort((a,b)=>(b.health||0)-(a.health||0));
+    brave.slice(0,Math.max(1,Math.floor(group.length*.12))).forEach((n,i)=>{
+      if(!titleBlock.includes(n.roleId)){const id=group.length>=25&&i===0?'captain':(Math.random()<.25?'knight':'soldier');n.roleId=id;n.roleName=window.ROLE_BY_ID[id].name;n.roleDescription=window.ROLE_BY_ID[id].desc;}
+    });
+
+    if(group.length>=10){const cleric=group.find(n=>n.age>=20&&n.trait==='calm'&&!titleBlock.includes(n.roleId));if(cleric){cleric.roleId='cleric';cleric.roleName='Cleric';cleric.roleDescription='serves a temple';}}
+    if(group.length>=20){const mage=group.find(n=>n.age>=24&&n.trait==='curious'&&!titleBlock.includes(n.roleId));if(mage){mage.roleId=Math.random()<.55?'wizard':'mage';mage.roleName=window.ROLE_BY_ID[mage.roleId].name;mage.roleDescription=window.ROLE_BY_ID[mage.roleId].desc;}}
+    if((sim.stability||80)<55){const rogue=group.find(n=>n.age>=18&&n.trait==='greedy'&&!titleBlock.includes(n.roleId));if(rogue){rogue.roleId=Math.random()<.5?'thief':'smuggler';rogue.roleName=window.ROLE_BY_ID[rogue.roleId].name;rogue.roleDescription=window.ROLE_BY_ID[rogue.roleId].desc;}}
+    if(group.length>=35){const adviser=sorted.find(n=>!titleBlock.includes(n.roleId)&&n.trait==='clever');if(adviser){adviser.roleId='royal_advisor';adviser.roleName='Royal Advisor';adviser.roleDescription='advises the ruler';}}
   });
 };
 
-window.roleDescription = function(id){return window.ROLE_BY_ID[id] || window.ROLE_BY_ID.citizen;};
+window.roleDescription = id => window.ROLE_BY_ID[id] || window.ROLE_BY_ID.citizen;
+
+// Bridge the role library into the existing simulator without making the core engine depend on it.
+// It assigns professions immediately and re-evaluates social/military/magic titles periodically.
+(function connectRoleSystem(){
+  let ticks=0;
+  const timer=setInterval(()=>{
+    try{
+      if(typeof state==='undefined' || typeof renderAll!=='function') return;
+      if(!state.npcs?.length) return;
+      if(ticks++%4===0) window.assignEmergentRoles(state.npcs, typeof SETTLEMENTS!=='undefined'?SETTLEMENTS:[], state);
+      // Role-driven behavior: push NPCs toward jobs that match their identities.
+      state.npcs.filter(n=>n.alive).forEach(n=>{
+        const r=window.roleDescription(n.roleId);
+        if(!r) return;
+        if(r.id==='farmer'||r.id==='rancher'||r.id==='forager'){n.job='farmer';}
+        else if(['blacksmith','armorer','carpenter','mason','builder','engineer','shipwright'].includes(r.id)){n.job='builder';}
+        else if(['merchant','trader','peddler','shopkeeper','innkeeper'].includes(r.id)){n.job='merchant';}
+        else if(['healer','doctor','herbalist'].includes(r.id)){n.job='healer';}
+        else if(['soldier','archer','spearman','cavalry','knight','paladin','ranger','captain','general','marshal','bodyguard'].includes(r.id)){n.job='guard';}
+        else if(['cleric','priest','high_priest','monk','oracle','mage','wizard','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id)){n.job='scholar';}
+        else if(['thief','pickpocket','burglar','bandit','assassin','smuggler','spy','informant'].includes(r.id)){n.job='merchant';}
+        if(['king','queen','duke','archduke','count','governor','mayor','emperor','empress','prince','princess'].includes(r.id)) n.goal='Govern';
+        if(['thief','pickpocket','burglar','bandit','assassin','smuggler'].includes(r.id)&&Math.random()<.08)n.goal='Steal';
+        if(['cleric','priest','high_priest','monk','oracle'].includes(r.id)&&Math.random()<.08)n.goal='Pray';
+        if(['wizard','mage','sorcerer','warlock','druid','alchemist','enchanter','necromancer'].includes(r.id)&&Math.random()<.08)n.goal='Study magic';
+        if(['knight','paladin','captain','general','marshal'].includes(r.id)&&state.war)n.goal='Command army';
+      });
+      if(state.selected){const selected=state.npcs.find(n=>n.id===state.selected);if(selected&&elements?.inspectorContent?.innerHTML){
+        const title=selected.roleName||selected.job||'Citizen';
+        const marker=`<div class="goal"><b>Role:</b> ${title}<br><span>${selected.roleDescription||''}</span></div>`;
+        if(!elements.inspectorContent.innerHTML.includes('Role:')) elements.inspectorContent.innerHTML=elements.inspectorContent.innerHTML.replace(/(<\/div>\s*<div class="goal">)/,`$1${marker}`);
+      }}
+      renderAll();
+    }catch(e){/* role layer should never stop the core simulation */}
+  },1000);
+  window.stopRoleSystem=()=>clearInterval(timer);
+})();
