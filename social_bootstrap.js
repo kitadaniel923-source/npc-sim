@@ -44,6 +44,7 @@
     await loadScript('art_2d.js');
     await loadScript('social_ui.js');
     await loadScript('interaction_fix.js');
+    await loadScript('spawn_system.js');
   } catch (error) {
     console.error('Everglen bootstrap failed:', error);
     const banner = document.createElement('div');
