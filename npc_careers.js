@@ -69,7 +69,6 @@
     const ranked = careerPool(n);
     const best = ranked[0];
     if (!best) return;
-    const current = roles[n.roleId];
     const currentGroup = CAREERS.find(c=>c.id===n.roleId)?.group;
     if (n.roleId && n.roleId !== 'citizen' && n.roleId !== 'unemployed' && currentGroup && best.score < (CAREERS.find(c=>c.id===n.roleId)?.fit || 0) + 18) return;
     n.career = n.career || {};
@@ -111,5 +110,5 @@
   }
 
   window.NPC_CAREERS = { CAREERS, careerPool, chooseCareer, step };
-  setInterval(step, 500);
+  if (state.registerSystem) state.registerSystem(step);
 })();
