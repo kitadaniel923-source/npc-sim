@@ -2,7 +2,6 @@
   const state=window.SIM_STATE;if(!state)return;
   const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
   const alive=()=>state.npcs.filter(n=>n.alive);
-  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const trait=(n,t)=>Array.isArray(n.traits)&&n.traits.includes(t)||n.trait===t;
   function action(n){
     if(!n.alive||!n.aiDecision)return;
@@ -13,7 +12,7 @@
     else if(a==='socialize'){const peers=alive().filter(x=>x.id!==n.id&&x.settlementId===n.settlementId);if(peers.length){const t=peers[Math.floor(Math.random()*peers.length)];n.needs.social=clamp(n.needs.social-12);n.mood=clamp(n.mood+2);n.lastAction=`Talked with ${t.name}`;window.NPC_MEMORY?.remember(n,`Spent time with ${t.name}.`,'relationship',1,t.id);}}
     else if(a==='belong'){n.needs.belonging=clamp(n.needs.belonging-15);n.mood=clamp(n.mood+3);n.lastAction='Visited family';}
     else if(a==='work'){n.needs.purpose=clamp(n.needs.purpose-9);n.energy=clamp(n.energy-2);n.lastAction=`Worked as ${n.roleName||'Citizen'}`;}
-    else if(a==='wealth'){n.wealth+=.35+(n.roleId==='merchant'||n.roleId==='trader'?.5:0);n.needs.wealth=clamp(n.needs.wealth-5);n.lastAction='Pursued income';}
+    else if(a==='wealth'){n.wealth+=.35+((n.roleId==='merchant'||n.roleId==='trader')?.5:0);n.needs.wealth=clamp(n.needs.wealth-5);n.lastAction='Pursued income';}
     else if(a==='safety'){n.needs.safety=clamp(n.needs.safety-10);n.lastAction='Sought safety';}
     else if(a==='explore'){n.needs.purpose=clamp(n.needs.purpose-4);n.lastAction='Explored nearby land';}
     else if(a==='govern'){n.needs.purpose=clamp(n.needs.purpose-10);n.influence=clamp((n.influence||0)+.15,0,50);n.lastAction='Handled civic affairs';}
