@@ -180,6 +180,6 @@
     ensure,remember,observe,consequence,experience,recall,trust,fear,grudge,sharedEvent,strengthen,step
   };
 
-  if(state.registerSystem) state.registerSystem({name:'memory',step,priority:70});
+  if(state.registerSystem) state.registerSystem(step);
   else setInterval(step,1200);
 })();
