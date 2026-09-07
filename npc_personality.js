@@ -14,6 +14,7 @@
     hardworking:{ courage: 0, risk: 0, aggression: 0, sociability: -2, ambition: 7, discipline: 25, curiosity: 1, kindness: 2, loyalty: 3 }
   };
 
+  const KEYS = ['courage','risk','aggression','sociability','ambition','discipline','curiosity','kindness','loyalty'];
   const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
   const hash = (id) => { let h = 2166136261; for (const c of String(id)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
@@ -24,6 +25,7 @@
       const secondary = Object.keys(TRAITS)[hash(String(n.id) + ':secondary') % Object.keys(TRAITS).length];
       n.personality = {
         traits: [primary, secondary === primary ? 'clever' : secondary],
+        base: Object.fromEntries(KEYS.map(k => [k, k === 'ambition' ? (n.ambition ?? base) : k === 'loyalty' ? (n.loyalty ?? base) : base])),
         courage: base,
         risk: base,
         aggression: base,
@@ -35,24 +37,31 @@
         loyalty: n.loyalty ?? base
       };
       applyTraits(n);
+    } else if (!n.personality.base) {
+      n.personality.base = Object.fromEntries(KEYS.map(k => [k, n.personality[k] ?? 50]));
     }
     return n.personality;
   }
 
   function applyTraits(n) {
-    const p = n.personality;
+    const p = ensureBase(n);
     const traits = p.traits || [];
-    const keys = ['courage','risk','aggression','sociability','ambition','discipline','curiosity','kindness','loyalty'];
-    const values = Object.fromEntries(keys.map(k => [k, p[k] ?? 50]));
+    const values = Object.fromEntries(KEYS.map(k => [k, p.base[k] ?? 50]));
     traits.forEach(t => {
       const mod = TRAITS[t];
       if (!mod) return;
-      keys.forEach(k => values[k] += mod[k] || 0);
+      KEYS.forEach(k => values[k] += mod[k] || 0);
     });
-    keys.forEach(k => p[k] = clamp(values[k]));
+    KEYS.forEach(k => p[k] = clamp(values[k]));
     n.ambition = p.ambition;
     n.loyalty = p.loyalty;
     return p;
+  }
+
+  function ensureBase(n) {
+    if (!n.personality) return ensure(n);
+    if (!n.personality.base) n.personality.base = Object.fromEntries(KEYS.map(k => [k, n.personality[k] ?? 50]));
+    return n.personality;
   }
 
   function addTrait(n, trait) {
