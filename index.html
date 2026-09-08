@@ -20,8 +20,10 @@
     </main>
   </div>
 
-  <!-- Production dependency order. Dead legacy bootstrap and duplicate interaction layer are archived. -->
+  <!-- Production dependency order. Shared input/render ownership is established immediately after simulation. -->
   <script src="simulation.js"></script>
+  <script src="input_dispatcher.js"></script>
+  <script src="render_registry.js"></script>
   <script src="core_ownership.js"></script>
   <script src="simulation_budget.js"></script>
   <script src="logistics.js"></script>
