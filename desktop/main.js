@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const APP_ID = 'com.everglen.livingworld';
 app.setAppUserModelId(APP_ID);
@@ -23,6 +24,14 @@ function createWindow() {
   });
 
   win.once('ready-to-show', () => win.show());
+  win.webContents.on('did-finish-load', () => {
+    try {
+      const polish = fs.readFileSync(path.join(__dirname, 'polish.js'), 'utf8');
+      win.webContents.executeJavaScript(polish, true).catch(error => console.error('Everglen polish injection failed:', error));
+    } catch (error) {
+      console.error('Everglen polish load failed:', error);
+    }
+  });
   win.loadFile(path.join(__dirname, '..', 'index.html'));
 }
 
