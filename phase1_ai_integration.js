@@ -1,13 +1,13 @@
 // Phase 1 AI integration seam.
-// Connects personality, careers, needs, goals, decisions, behavior, relationships and memory
+// Connects personality, careers, needs, goals, learning, decisions, behavior, relationships and memory
 // without replacing the existing specialist systems.
 (() => {
   const state = window.SIM_STATE;
   if (!state) return;
 
-  const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
   const goals = () => window.NPC_GOALS;
   const personality = () => window.NPC_PERSONALITY;
+  const learning = () => window.NPC_LEARNING;
   const careerSeen = new Map();
   const actionSeen = new Map();
 
@@ -15,16 +15,22 @@
     if (!n) return;
     personality()?.ensure?.(n);
     goals()?.refresh?.(n);
+    learning()?.ensure?.(n);
     n.ai = n.ai || {};
     n.ai.phase = 'phase1';
     n.ai.longTermGoal = n.longTermGoal?.id || null;
     n.ai.goalCategory = n.longTermGoal?.category || null;
     n.ai.goalScore = n.longTermGoal?.score || 0;
     n.ai.stakes = n.goalStakes || n.longTermGoal?.stakes || [];
+    n.ai.learning = n.learning || null;
   }
 
   function goalScore(n, action) {
     return goals()?.scoreAction?.(n, action) || 0;
+  }
+
+  function learningScore(n, action) {
+    return learning()?.actionModifier?.(n, action) || 0;
   }
 
   function applyGoalInfluence(n) {
@@ -32,11 +38,13 @@
     const d = n.aiDecision;
     const g = goals()?.refresh?.(n);
     if (!g) return;
-    const influence = goalScore(n, d.action);
-    d.goalInfluence = Math.round(influence * 100) / 100;
-    d.score = Math.max(0, Math.round((d.score || d.priority || 0) + influence));
+    const goalInfluence = goalScore(n, d.action);
+    const learnedInfluence = learningScore(n, d.action);
+    d.goalInfluence = Math.round(goalInfluence * 100) / 100;
+    d.learningInfluence = Math.round(learnedInfluence * 100) / 100;
+    d.score = Math.max(0, Math.round((d.score || d.priority || 0) + goalInfluence + learnedInfluence));
     d.priority = d.score;
-    d.reason = `${d.reason || 'Selected action'} | long-term goal: ${g.label}`;
+    d.reason = `${d.reason || 'Selected action'} | long-term goal: ${g.label} | learned preference ${learnedInfluence >= 0 ? '+' : ''}${Math.round(learnedInfluence*10)/10}`;
     n.decisionReason = d.reason;
     n.decisionPriority = d.priority;
     n.ai.goalScore = g.score || 0;
@@ -83,11 +91,7 @@
     if (!goalId) return;
     const actionSucceeded = !!n.lastAction && !/^Failed/i.test(n.lastAction);
     goals()?.recordOutcome?.(n, actionSucceeded, actionSucceeded ? `Completed ${action}` : `Attempted ${action}`);
-    if (actionSucceeded) {
-      const growthMap = {work:'work',wealth:'work',train:'combat',study:'study',explore:'explore',socialize:'social',confront:'leadership',govern:'leadership'};
-      const growth = growthMap[action];
-      if (growth) personality()?.develop?.(n, growth, .15);
-    }
+    learning()?.learn?.(n, action, actionSucceeded, actionSucceeded ? .8 : 1.1, n.lastAction || 'Action outcome recorded');
   }
 
   function step() {
@@ -104,9 +108,10 @@
     if (selected) {
       selected.ai.goal = selected.longTermGoal?.label || 'No long-term goal';
       selected.ai.goalCategory = selected.longTermGoal?.category || null;
+      selected.ai.learning = selected.learning || null;
     }
   }
 
-  window.PHASE1_AI = { ensure, goalScore, applyGoalInfluence, step };
+  window.PHASE1_AI = { ensure, goalScore, learningScore, applyGoalInfluence, step };
   if (state.registerSystem) state.registerSystem({name:'phase1-ai-integration',step,priority:85});
 })();
