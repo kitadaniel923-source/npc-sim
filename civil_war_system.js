@@ -34,7 +34,7 @@
     if(!cap)return false;
     const rebelSeat=state.settlements.find(s=>s.kingdomId===k.id&&s.rulerId===leader.id)||state.settlements.find(s=>s.kingdomId===k.id&&s.founderId===leader.id)||cap;
     const loyalPeople=people(k),base=Math.max(12,Math.round(loyalPeople.length*.32)),rebelCount=Math.max(5,Math.round(base*(.55+(leader.grievance||0)/200)));
-    const loyal=armyFor(k.id,cap.x,cap.y,base,k.leaderId,'loyal',rebelKing.id,null),rebel=armyFor(rebelKing.id,rebelSeat.x??cap.x+45,rebelSeat.y??cap.y+45,rebelCount,leader.id,'rebel',k.id,null);
+    const loyal=armyFor(k.id,cap.x,cap.y,base,k.leaderId,'loyal',rebelKing.id,null),rebel=armyFor(rebelKing.id,rebelSeat.x??(cap.x+45),rebelSeat.y??(cap.y+45),rebelCount,leader.id,'rebel',k.id,null);
     const id=uid();loyal.civilWarId=id;rebel.civilWarId=id;crisis.active=true;crisis.id=id;crisis.rebelKingdomId=rebelKing.id;crisis.leaderId=leader.id;crisis.loyalArmyId=loyal.id;crisis.rebelArmyId=rebel.id;crisis.startedYear=state.year;crisis.status='active';crisis.fronts=[];crisis.history=[];state.armies.push(loyal,rebel);
     if(rebelSeat&&rebelSeat.kingdomId===k.id){
       rebelSeat.kingdomId=rebelKing.id;
@@ -103,8 +103,8 @@
   function frontsStep(k){
     const c=ensure(k),loyal=state.armies.find(a=>a.id===c.loyalArmyId),rebel=state.armies.find(a=>a.id===c.rebelArmyId);if(!loyal||!rebel)return;
     const rebelKing=findKing(c.rebelKingdomId);if(!rebelKing)return;
-    const loyalTarget=chooseTarget(loyal,rebelKing.id),rebelTarget=chooseTarget(rebel,k.id);
-    if(!loyalTarget) {
+    let loyalTarget=chooseTarget(loyal,rebelKing.id),rebelTarget=chooseTarget(rebel,k.id);
+    if(!loyalTarget){
       const defended=state.settlements.filter(s=>s.kingdomId===k.id);
       loyalTarget=defended.slice().sort((a,b)=>Math.hypot(loyal.x-a.x,loyal.y-a.y)-Math.hypot(loyal.x-b.x,loyal.y-b.y))[0]||null;
     }
@@ -119,7 +119,7 @@
     if(state.tick%60===0){c.fronts=(c.fronts||[]).slice(-11);c.fronts.push(front);}
     if(lt&&Math.hypot(loyal.x-lt.x,loyal.y-lt.y)<42)window.NPC_WAR.siege(loyal,lt);
     if(rt&&Math.hypot(rebel.x-rt.x,rebel.y-rt.y)<42)window.NPC_WAR.siege(rebel,rt);
-    if(lt&&lt.stability<20)captureSettlement(rebelKing,loyal,lt);
+    if(lt&&lt.stability<20)captureSettlement(k,loyal,lt);
     if(rt&&rt.stability<20)captureSettlement(rebelKing,rebel,rt);
     state.settlements.filter(s=>s.kingdomId===rebelKing.id).forEach(s=>{s.stability=clamp((s.stability||60)-.01*(state.speed||1));});
   }
