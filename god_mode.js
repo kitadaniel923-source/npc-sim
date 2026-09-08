@@ -45,16 +45,6 @@
     if (feed) feed.innerHTML = state.feed.map(x => `<li>${x}</li>`).join('');
   };
   const render = () => { try { window.SIM_RENDER?.(); } catch (_) {} };
-  const worldPoint = e => {
-    const r = canvas.getBoundingClientRect();
-    const sx = (e.clientX - r.left) * canvas.width / Math.max(1, r.width);
-    const sy = (e.clientY - r.top) * canvas.height / Math.max(1, r.height);
-    const camera = state.camera || { x:0, y:0, zoom:1 };
-    return {
-      x: camera.x + (sx - canvas.width / 2) / Math.max(.01, camera.zoom),
-      y: camera.y + (sy - canvas.height / 2) / Math.max(.01, camera.zoom)
-    };
-  };
   const nearbyNpc = p => (state.npcs || []).filter(n => n.alive).reduce((best,n) => {
     const d = Math.hypot((n.x||0)-p.x,(n.y||0)-p.y);
     return !best || d < best.d ? { n, d } : best;
@@ -191,12 +181,11 @@
     note(`${moveTarget.name} was moved to a new location.`); moveTarget=null; render(); return true;
   }
 
-  function handle(e) {
-    if(!active || busy) return;
-    if(e.button!==0) return;
-    const p=worldPoint(e);
+  function handle(p, e) {
+    if(!active || busy) return false;
+    if(e.button!==0) return false;
     let handled=false;
-    if(tool==='select') return;
+    if(tool==='select') return false;
     if(tool==='move') handled=move(p);
     else if(tool==='bless') handled=bless(p);
     else if(tool==='smite') handled=smite(p);
@@ -204,7 +193,7 @@
     else if(['gold','iron','food','wood'].includes(tool)) {resource(tool,p);handled=true;}
     else if(tool==='settlement') {settlement(p);handled=true;}
     else if(tool==='meteor') {meteor(p);handled=true;}
-    if(handled){e.preventDefault();e.stopImmediatePropagation();}
+    return handled;
   }
 
   function buildMenu(){
@@ -223,8 +212,20 @@
   if(godButton){
     godButton.addEventListener('click',e=>{e.stopImmediatePropagation();setActive(!active);},true);
   }
-  canvas.addEventListener('click',handle,true);
+
+  const registerInput = () => {
+    if (!window.EVERGLEN_INPUT?.register) return;
+    window.EVERGLEN_INPUT.register({
+      name:'god-mode',
+      priority:10,
+      events:['click'],
+      hitTest:() => active && !busy,
+      handle
+    });
+  };
+
   buildMenu();
+  registerInput();
   window.EVERGLEN_GOD_MODE={activate:()=>setActive(true),deactivate:()=>setActive(false),choose,tools:TOOLS,get active(){return active},get tool(){return tool}};
   updateUI();
 })();
