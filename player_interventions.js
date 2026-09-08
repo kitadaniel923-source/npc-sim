@@ -22,6 +22,7 @@
       day: Number(state.day) || 1,
       hour: Number(state.hour) || 0,
       action: String(action),
+      type: details.type || String(action),
       tool: details.tool || null,
       target: details.target || null,
       position: Number.isFinite(Number(details.x)) && Number.isFinite(Number(details.y))
