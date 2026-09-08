@@ -76,6 +76,7 @@
     n.career.roleId = best.id;
     n.career.group = best.group;
     n.career.score = Math.round(best.score);
+    n.career.specialization = best.id === 'blacksmith' ? 'smithing + armoring' : null;
     n.career.lastReview = state.year;
     n.career.history = n.career.history || [];
     if (n.roleId !== best.id) {
