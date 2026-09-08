@@ -19,6 +19,17 @@
       loyalty: personalityApi?.score(n,'loyalty') ?? (n.loyalty||50)
     };
   }
+  function urgentDecision(n,p,q){
+    const danger=state.war&&n.settlementId&&n.safety<35;
+    if(n.roleId==='prisoner'&&n.term>0)return{action:'safety',goal:'Survive imprisonment',priority:100,reason:'Prison sentence requires survival'};
+    if((n.health??100)<25)return{action:'safety',goal:'Protect health',priority:100,reason:'Health is critically low'};
+    if(q.hunger>=88)return{action:'eat',goal:'Find food now',priority:99,reason:`Hunger emergency (${Math.round(q.hunger)})`};
+    if(q.thirst>=88)return{action:'drink',goal:'Find water now',priority:99,reason:`Thirst emergency (${Math.round(q.thirst)})`};
+    if(q.energy>=90)return{action:'rest',goal:'Recover energy',priority:96,reason:`Severe fatigue (${Math.round(q.energy)})`};
+    if(danger)return{action:'safety',goal:'Escape danger',priority:94,reason:'War has made the current area unsafe'};
+    if(q.safety>=82)return{action:'safety',goal:'Seek safety',priority:92,reason:`Safety pressure (${Math.round(q.safety)})`};
+    return null;
+  }
   function reasons(n, pick, q, p){
     const why=[];
     const add=(label,value,threshold=12)=>{if(Number(value)>threshold)why.push({label,value:Number(value)});};
@@ -37,22 +48,39 @@
     why.sort((a,b)=>b.value-a.value);
     return why.slice(0,3);
   }
+  function writeDecision(n,d,source='interrupt'){
+    n.aiDecision={action:d.action,score:d.priority,at:state.tick,priority:d.priority,reason:d.reason,interrupted:true};
+    n.goal=d.goal;
+    n.decisionReason=d.reason;
+    n.decisionSource=source;
+    n.decisionPriority=d.priority;
+    n.decisionWeights={priority:d.priority,reason:d.reason};
+    n.decisionInterrupt={active:true,reason:d.reason,startedAt:state.tick,until:state.tick+2};
+    trace?.record?.(n,d.reason,source,d.action,d.priority);
+  }
   function choose(n){
     if(!n.alive||n.age<13)return;
+    const p=personality(n),q=n.needPressure||{};
+    const emergency=urgentDecision(n,p,q);
+    if(emergency){writeDecision(n,emergency);return;}
+    if(n.decisionInterrupt?.active){
+      if(state.tick<=n.decisionInterrupt.until)return;
+      n.decisionInterrupt.active=false;
+    }
     if(planner){
       const plan=n.currentPlan||planner.plan(n);
       const step=planner.nextStep(n);
       if(plan&&step){
-        n.aiDecision={action:step.action,score:plan.score,at:state.tick,planId:plan.id,targetId:step.targetId||null};
+        n.aiDecision={action:step.action,score:plan.score,at:state.tick,planId:plan.id,targetId:step.targetId||null,priority:Math.max(20,Number(plan.score)||20),interrupted:false};
         n.goal=plan.goal;
         n.decisionReason=plan.reason;
         n.decisionSource='planning';
-        n.decisionWeights={plan:Number(plan.score)||0,step:1};
-        trace?.record?.(n,plan.reason||`Plan selected: ${plan.goal}`, 'planning', step.action, Math.max(1,Number(plan.score)||1));
+        n.decisionPriority=Math.max(20,Number(plan.score)||20);
+        n.decisionWeights={plan:Number(plan.score)||0,step:1,priority:Math.max(20,Number(plan.score)||20)};
+        trace?.record?.(n,plan.reason||`Plan selected: ${plan.goal}`,'planning',step.action,Math.max(1,Number(plan.score)||1));
         return;
       }
     }
-    const p=personality(n),q=n.needPressure||{};
     const trait=(t)=>personalityApi?.has(n,t) || n.trait===t;
     const options=[
       ['eat','Find food',q.hunger*1.8+(n.roleId==='farmer'?8:0)],
@@ -72,13 +100,14 @@
     const pick=viable[0];if(!pick)return;
     const why=reasons(n,pick[0],q,p);
     const reasonText=why.length?why.map(x=>`${x.label} ${Math.round(x.value)}`).join(', '):`${pick[0]} has the highest current utility`;
-    n.aiDecision={action:pick[0],score:Math.round(pick[2]),at:state.tick,influences:why};
+    n.aiDecision={action:pick[0],score:Math.round(pick[2]),at:state.tick,priority:Math.max(20,Math.round(pick[2])),influences:why,interrupted:false};
     n.goal=pick[1];
     n.decisionReason=reasonText;
     n.decisionSource='decision-engine';
-    n.decisionWeights={utility:Math.round(pick[2]),influences:why};
+    n.decisionPriority=Math.max(20,Math.round(pick[2]));
+    n.decisionWeights={utility:Math.round(pick[2]),influences:why,priority:Math.max(20,Math.round(pick[2]))};
     trace?.record?.(n,reasonText,'decision-engine',pick[0],pick[2]);
   }
-  window.NPC_DECISIONS={choose,personality};
+  window.NPC_DECISIONS={choose,personality,urgentDecision};
   if(state.registerSystem)state.registerSystem({name:'decision-engine',step:()=>{},priority:55});
 })();
