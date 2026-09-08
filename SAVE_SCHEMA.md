@@ -45,9 +45,14 @@ NPC relationships reference other NPCs by stable `targetId` values. They must re
 
 ### Player interventions
 
-`state.playerInterventions` is authoritative history for player-caused world changes. Current records contain an ID, actor/source marker, simulation time, action/tool, target, optional world position, details, consequences, and affected entity ID.
+`state.playerInterventions` is authoritative history for player-caused world changes. Current records contain an ID, actor/source marker, simulation time, action/tool, explicit `type`, target, optional world position, details, consequences, and affected entity ID.
 
-This phase records the intervention. Deeper propagation into culture, politics, rumors, and long-term historical systems is intentionally a later feature and is not part of persistence architecture.
+Territory interaction state is also ordinary world data and is persisted automatically:
+
+- `state.territoryClaims` → tile-id keyed player claim overrides. These are inputs to `recomputeTerritory()`, not direct ownership writes. Removing a claim deletes the override and recomputes organic ownership.
+- `state.borderWars` → targeted kingdom-pair wars created by contextual border actions. These are distinct from the global `state.war` toggle.
+
+This phase records the intervention and the persistent world-state change. Deeper propagation into culture, politics, rumors, and long-term historical systems is intentionally a later feature and is not part of persistence architecture.
 
 ## Migration policy
 
