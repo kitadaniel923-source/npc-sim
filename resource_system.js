@@ -26,16 +26,16 @@
     leather:{name:'Leather',category:'crafted',unit:'hides',base:13,description:'Animal hide used for equipment, clothing and armor.'},
     wool:{name:'Wool',category:'crafted',unit:'bundles',base:10,description:'Animal fiber used by textile workers.'},
 
-    medicine:{name:'Medicine',category:'medicine & magic',unit:'doses',base:22,description:'Prepared medical supplies.'},
-    herbs:{name:'Herbs',category:'medicine & magic',unit:'bundles',base:12,description:'Medicinal and culinary plants.'},
-    reagents:{name:'Reagents',category:'medicine & magic',unit:'bundles',base:28,description:'Rare ingredients used by alchemists and mages.'},
+    medicine:{name:'Medicine',category:'Medicine & magic',unit:'doses',base:22,description:'Prepared medical supplies.'},
+    herbs:{name:'Herbs',category:'Medicine & magic',unit:'bundles',base:12,description:'Medicinal and culinary plants.'},
+    reagents:{name:'Reagents',category:'Medicine & magic',unit:'bundles',base:28,description:'Rare ingredients used by alchemists and mages.'},
 
     glass:{name:'Glass',category:'crafted',unit:'pieces',base:26,description:'Crafted material used for trade and specialized goods.'},
-    paper:{name:'Paper',category:'knowledge',unit:'sheets',base:16,description:'Writing material for scholars and administrators.'},
-    books:{name:'Books',category:'knowledge',unit:'volumes',base:38,description:'Knowledge goods produced by scribes.'},
+    paper:{name:'Paper',category:'Knowledge',unit:'sheets',base:16,description:'Writing material for scholars and administrators.'},
+    books:{name:'Books',category:'Knowledge',unit:'volumes',base:38,description:'Knowledge goods produced by scribes.'},
 
-    weapons:{name:'Weapons',category:'military',unit:'items',base:35,description:'Weapons for militia and armies.'},
-    armor:{name:'Armor',category:'military',unit:'items',base:42,description:'Protective equipment forged by blacksmiths.'},
+    weapons:{name:'Weapons',category:'Military',unit:'items',base:35,description:'Weapons for militia and armies.'},
+    armor:{name:'Armor',category:'Military',unit:'items',base:42,description:'Protective equipment forged by blacksmiths.'},
     tools:{name:'Tools',category:'crafted',unit:'items',base:18,description:'General tools used by workers.'},
 
     boats:{name:'Boats',category:'transport',unit:'vessels',base:70,description:'Civilian vessels for fishing and transport.'},
