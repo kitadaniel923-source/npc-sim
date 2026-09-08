@@ -1,0 +1,58 @@
+{
+  "name": "everglen",
+  "version": "1.0.0",
+  "description": "Everglen medieval fantasy living-world simulator",
+  "main": "desktop/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "desktop:build": "electron-builder --win nsis portable --x64",
+    "desktop:dir": "electron-builder --win dir --x64"
+  },
+  "devDependencies": {
+    "electron": "44.2.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.everglen.livingworld",
+    "productName": "Everglen",
+    "asar": true,
+    "files": [
+      "index.html",
+      "styles.css",
+      "*.js",
+      "archive/**/*",
+      "desktop/**/*",
+      "assets/**/*",
+      "LICENSE",
+      "README.md"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "Everglen-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Everglen"
+    },
+    "portable": {
+      "artifactName": "Everglen-${version}-portable.${ext}"
+    }
+  }
+}
