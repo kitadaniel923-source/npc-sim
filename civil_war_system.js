@@ -10,7 +10,6 @@
   const log=t=>window.SIM_LOG?.(t);
   const people=k=>alive().filter(n=>n.faction===k.id);
   const settlementForArmy=a=>state.settlements.find(s=>s.id===a?.targetSettlementId)||null;
-  const enemySettlements=(a,k)=>state.settlements.filter(s=>s.kingdomId===k.id&&!a.lastTargetSettlementId);
 
   function ensure(k){
     k.society=k.society||{};
@@ -30,23 +29,36 @@
   }
   function createCivilWar(k,leader){
     const crisis=ensure(k);if(crisis.active||!leader||!window.NPC_WAR)return false;
-    const rebelKing=makeRebelKingdom(k,leader),cap=state.settlements.find(s=>s.kingdomId===k.id&&s.id===k.capitalId)||state.settlements.find(s=>s.kingdomId===k.id);
+    const rebelKing=makeRebelKingdom(k,leader);
+    const cap=state.settlements.find(s=>s.kingdomId===k.id&&s.id===k.capitalId)||state.settlements.find(s=>s.kingdomId===k.id);
     if(!cap)return false;
+    const rebelSeat=state.settlements.find(s=>s.kingdomId===k.id&&s.rulerId===leader.id)||state.settlements.find(s=>s.kingdomId===k.id&&s.founderId===leader.id)||cap;
     const loyalPeople=people(k),base=Math.max(12,Math.round(loyalPeople.length*.32)),rebelCount=Math.max(5,Math.round(base*(.55+(leader.grievance||0)/200)));
-    const loyal=armyFor(k.id,cap.x,cap.y,base,k.leaderId,'loyal',rebelKing.id,null),rebel=armyFor(rebelKing.id,leader.x||cap.x+45,leader.y||cap.y+45,rebelCount,leader.id,'rebel',k.id,null);
+    const loyal=armyFor(k.id,cap.x,cap.y,base,k.leaderId,'loyal',rebelKing.id,null),rebel=armyFor(rebelKing.id,rebelSeat.x??cap.x+45,rebelSeat.y??cap.y+45,rebelCount,leader.id,'rebel',k.id,null);
     const id=uid();loyal.civilWarId=id;rebel.civilWarId=id;crisis.active=true;crisis.id=id;crisis.rebelKingdomId=rebelKing.id;crisis.leaderId=leader.id;crisis.loyalArmyId=loyal.id;crisis.rebelArmyId=rebel.id;crisis.startedYear=state.year;crisis.status='active';crisis.fronts=[];crisis.history=[];state.armies.push(loyal,rebel);
+    if(rebelSeat&&rebelSeat.kingdomId===k.id){
+      rebelSeat.kingdomId=rebelKing.id;
+      rebelSeat.rulerId=leader.id;
+      rebelSeat.stability=clamp((rebelSeat.stability||60)-18);
+      rebelSeat.history=rebelSeat.history||[];
+      rebelSeat.history.push(`Year ${state.year}: ${rebelSeat.name} became the rebel seat during the civil war.`);
+      rebelSeat.history=rebelSeat.history.slice(-20);
+      rebelKing.capitalId=rebelSeat.id;
+    }
     rebel.parentKingdomId=k.id;leader.goal='Lead civil war';leader.roleId='rebel';leader.roleName='Rebel';
     M()?.remember?.(leader,`I raised an army against the ruler of ${k.name}.`,'civil-war',6,k.id,'anger',10,true);
-    log(`Civil war has erupted in ${k.name}. ${leader.name} leads the rebellion.`);
+    log(`Civil war has erupted in ${k.name}. ${leader.name} leads the rebellion from ${rebelSeat.name}.`);
     window.EVERGLEN_NOTIFY?.({type:'war-declared',text:`Civil war erupts in ${k.name}.`,cause:'organic',x:leader.x,y:leader.y});
+    window.SIM_API?.recomputeTerritory?.();
     return true;
   }
-  function chooseTarget(army,homeKing,enemySide){
-    const targets=state.settlements.filter(s=>s.kingdomId===(enemySide==='rebel'?homeKing.id:army.targetKingdomId));
+  function chooseTarget(army,kingId,avoidCapital=false){
+    const targets=state.settlements.filter(s=>String(s.kingdomId)===String(kingId));
     if(!targets.length)return null;
+    const king=findKing(kingId);
     return targets.slice().sort((a,b)=>{
-      const sa=Math.hypot(army.x-a.x,army.y-a.y)-(a.id===homeKing.capitalId?70:0)-(a.level||1)*14;
-      const sb=Math.hypot(army.x-b.x,army.y-b.y)-(b.id===homeKing.capitalId?70:0)-(b.level||1)*14;
+      const sa=Math.hypot(army.x-a.x,army.y-a.y)-(avoidCapital&&king&&a.id===king.capitalId?90:0)-(a.level||1)*14;
+      const sb=Math.hypot(army.x-b.x,army.y-b.y)-(avoidCapital&&king&&b.id===king.capitalId?90:0)-(b.level||1)*14;
       return sa-sb;
     })[0]||null;
   }
@@ -56,17 +68,16 @@
     const u=target.stability??78;
     if(u>22)return false;
     const from=target.kingdomId;
+    if(String(from)===String(k.id))return false;
     target.kingdomId=k.id;
     target.rulerId=a.commanderId||target.rulerId;
     target.stability=clamp(u+12);
     target.history=target.history||[];target.history.push(`Year ${state.year}: ${target.name} changed hands during civil war.`);target.history=target.history.slice(-20);
     if(target.id===k.capitalId)k.capitalId=target.id;
-    if(k.civilWarRebel){
-      const parent=findKing(k.parentKingdomId);if(parent){parent.society=parent.society||{};parent.society.civilWar=ensure(parent);}
-    }
     log(`${target.name} has fallen to the ${k.civilWarRebel?'rebels':'royalists'}.`);
     window.EVERGLEN_NOTIFY?.({type:'war-declared',text:`${target.name} has changed hands in the civil war.`,cause:'organic',x:target.x,y:target.y});
-    return from!==target.kingdomId;
+    window.SIM_API?.recomputeTerritory?.();
+    return true;
   }
   function cleanupRebelKingdom(k){
     const c=ensure(k),rid=c.rebelKingdomId;if(!rid)return;
@@ -92,7 +103,15 @@
   function frontsStep(k){
     const c=ensure(k),loyal=state.armies.find(a=>a.id===c.loyalArmyId),rebel=state.armies.find(a=>a.id===c.rebelArmyId);if(!loyal||!rebel)return;
     const rebelKing=findKing(c.rebelKingdomId);if(!rebelKing)return;
-    const loyalTarget=chooseTarget(loyal,k,'rebel'),rebelTarget=chooseTarget(rebel,rebelKing,'rebel');
+    const loyalTarget=chooseTarget(loyal,rebelKing.id),rebelTarget=chooseTarget(rebel,k.id);
+    if(!loyalTarget) {
+      const defended=state.settlements.filter(s=>s.kingdomId===k.id);
+      loyalTarget=defended.slice().sort((a,b)=>Math.hypot(loyal.x-a.x,loyal.y-a.y)-Math.hypot(loyal.x-b.x,loyal.y-b.y))[0]||null;
+    }
+    if(!rebelTarget){
+      const fallback=state.settlements.filter(s=>s.kingdomId===k.id);
+      rebelTarget=fallback.slice().sort((a,b)=>Math.hypot(rebel.x-a.x,rebel.y-a.y)-Math.hypot(rebel.x-b.x,rebel.y-b.y))[0]||null;
+    }
     loyal.targetSettlementId=loyalTarget?.id||loyal.targetSettlementId;rebel.targetSettlementId=rebelTarget?.id||rebel.targetSettlementId;
     const lt=settlementForArmy(loyal),rt=settlementForArmy(rebel);
     if(lt)moveToward(loyal,lt);if(rt)moveToward(rebel,rt);
@@ -100,7 +119,7 @@
     if(state.tick%60===0){c.fronts=(c.fronts||[]).slice(-11);c.fronts.push(front);}
     if(lt&&Math.hypot(loyal.x-lt.x,loyal.y-lt.y)<42)window.NPC_WAR.siege(loyal,lt);
     if(rt&&Math.hypot(rebel.x-rt.x,rebel.y-rt.y)<42)window.NPC_WAR.siege(rebel,rt);
-    if(lt&&lt.stability<20)captureSettlement(k,loyal,lt);
+    if(lt&&lt.stability<20)captureSettlement(rebelKing,loyal,lt);
     if(rt&&rt.stability<20)captureSettlement(rebelKing,rebel,rt);
     state.settlements.filter(s=>s.kingdomId===rebelKing.id).forEach(s=>{s.stability=clamp((s.stability||60)-.01*(state.speed||1));});
   }
