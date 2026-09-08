@@ -30,8 +30,12 @@
   let moveTarget = null;
   let busy = false;
 
-  const record = (action, details = {}) => {
-    try { return window.EVERGLEN_PLAYER?.record?.(action, { tool, ...details }); } catch (_) { return null; }
+  const applyEvent = (action, details = {}) => {
+    try {
+      return window.EVERGLEN_PLAYER_EVENTS?.apply?.(action, { tool, ...details }) || null;
+    } catch (_) {
+      return null;
+    }
   };
   const note = text => {
     state.feed = state.feed || [];
@@ -89,15 +93,15 @@
     const created = (state.npcs || []).filter(n => !before.has(n.id));
     created.forEach(n => { n.x = p.x + (Math.random()-.5)*10; n.y = p.y + (Math.random()-.5)*10; n.target = {x:n.x,y:n.y}; });
     busy = false;
-    const first = created[0];
-    const intervention = record('summon', {
+    const ids = created.map(n => n.id);
+    const intervention = applyEvent('summon', {
       x: p.x, y: p.y,
-      target: { kind: 'npc', ids: created.map(n => n.id) },
+      target: { kind: 'npc', ids },
       details: `Summoned ${kind}`,
-      entityId: first?.id || null,
+      entityIds: ids,
+      created: true,
       consequences: created.length ? [`Created ${created.length} ${kind} NPC${created.length === 1 ? '' : 's'}.`] : []
     });
-    created.forEach(n => { n.playerCreated = true; n.playerInterventionId = intervention?.id || null; });
     note(`${kind} summoned at the chosen location.`);
     render();
     return true;
@@ -108,7 +112,7 @@
     state.worldGen.resources = state.worldGen.resources || [];
     const resource = { id:`god-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`, type, x:p.x, y:p.y, amount:100, depleted:false, playerPlaced:true };
     state.worldGen.resources.push(resource);
-    const intervention = record('create-resource', { x:p.x, y:p.y, target:{kind:'resource',type}, details:`Created ${type} resource`, entityId:resource.id, consequences:[`Added 100 units of ${type} to the world.`] });
+    const intervention = applyEvent('create-resource', { x:p.x, y:p.y, target:{kind:'resource',type}, details:`Created ${type} resource`, entityId:resource.id, entityIds:[resource.id], placed:true, consequences:[`Added 100 units of ${type} to the world.`] });
     resource.playerInterventionId = intervention?.id || null;
     note(`A ${type} resource was created at the chosen location.`);
     render();
@@ -125,9 +129,9 @@
       resources:{food:80,wood:70,stone:45,iron:12,gold:15,cloth:8,medicine:4,reagents:3,weapons:2,armor:2,tools:8},
       history:[`Year ${state.year||1}: founded directly by the player.`], playerFounded:true
     };
-    const intervention = record('found-settlement', { x:p.x, y:p.y, target:{kind:'settlement',name:s.name}, details:`Founded ${s.name}`, entityId:s.id, consequences:[`${s.name} entered the world as a player-founded settlement.`] });
-    s.playerInterventionId = intervention?.id || null;
     state.settlements.push(s);
+    const intervention = applyEvent('found-settlement', { x:p.x, y:p.y, target:{kind:'settlement',name:s.name}, details:`Founded ${s.name}`, entityId:s.id, entityIds:[s.id], founded:true, consequences:[`${s.name} entered the world as a player-founded settlement.`] });
+    s.playerInterventionId = intervention?.id || null;
     note(`${s.name} was founded by divine intervention.`);
     render();
   }
@@ -148,7 +152,7 @@
       if(d<150){s.stability=Math.max(0,(s.stability||0)-25);s.wealth=Math.max(0,(s.wealth||0)-30);s.history=s.history||[];s.history.push(`Year ${state.year||1}: struck by a player-summoned meteor.`);damaged.push(s.id);}
     });
     state.stability=Math.max(0,(state.stability||50)-5);
-    record('meteor', { x:p.x, y:p.y, target:{kind:'world-point'}, details:'Summoned meteor', consequences:[`Killed ${kills.length} NPC${kills.length === 1 ? '' : 's'}.`, `Damaged ${damaged.length} settlement${damaged.length === 1 ? '' : 's'}.`] });
+    applyEvent('meteor', { x:p.x, y:p.y, target:{kind:'world-point'}, details:'Summoned meteor', consequences:[`Killed ${kills.length} NPC${kills.length === 1 ? '' : 's'}.`, `Damaged ${damaged.length} settlement${damaged.length === 1 ? '' : 's'}.`] });
     note('A meteor was summoned onto the world.');
     render();
   }
@@ -160,8 +164,7 @@
     n.health=100; n.mood=Math.min(100,(n.mood||50)+25); n.fortune=Math.min(100,(n.fortune||50)+20);
     n.grievance=Math.max(0,(n.grievance||0)-20); n.needState='stable';
     if(n.needs){n.needs.health=100;n.needs.safety=Math.min(100,(n.needs.safety||50)+20);n.needs.purpose=Math.min(100,(n.needs.purpose||50)+10);}
-    const intervention = record('bless', { x:n.x, y:n.y, target:{kind:'npc',id:n.id,name:n.name}, details:'Restored health and improved mood, fortune and safety.', entityId:n.id, consequences:['Health restored','Mood improved','Fortune improved','Grievance reduced'] });
-    if(window.NPC_MEMORY?.remember) window.NPC_MEMORY.remember(n,{type:'divine',text:'A mysterious divine blessing restored and strengthened me.',importance:90,permanent:true,emotion:'joy',playerCaused:true,source:'player',interventionId:intervention?.id||null});
+    applyEvent('bless', { x:n.x, y:n.y, target:{kind:'npc',id:n.id,name:n.name}, details:'Restored health and improved mood, fortune and safety.', entityId:n.id, memoryNpcIds:[n.id], memory:{type:'divine',text:'A mysterious divine blessing restored and strengthened me.',importance:90,permanent:true,emotion:'joy'}, consequences:['Health restored','Mood improved','Fortune improved','Grievance reduced'] });
     note(`${n.name} was blessed by the player.`);
     render(); return true;
   }
@@ -170,8 +173,7 @@
     const hit=nearbyNpc(p);
     if(!hit || hit.d>26/Math.max(.5,state.camera?.zoom||1)) return false;
     const n=hit.n; n.health=0; n.alive=false;
-    const intervention = record('smite', { x:n.x, y:n.y, target:{kind:'npc',id:n.id,name:n.name}, details:'Killed NPC through direct divine intervention.', entityId:n.id, consequences:[`${n.name} died.`] });
-    if(window.NPC_MEMORY?.remember) window.NPC_MEMORY.remember(n,{type:'divine',text:'I was struck down by a divine power.',importance:100,permanent:true,emotion:'fear',playerCaused:true,source:'player',interventionId:intervention?.id||null});
+    applyEvent('smite', { x:n.x, y:n.y, target:{kind:'npc',id:n.id,name:n.name}, details:'Killed NPC through direct divine intervention.', entityId:n.id, memoryNpcIds:[n.id], memory:{type:'divine',text:'I was struck down by a divine power.',importance:100,permanent:true,emotion:'fear'}, consequences:[`${n.name} died.`] });
     note(`${n.name} was smitten.`);
     if(state.selected===n.id) state.selected=null;
     render(); return true;
@@ -185,7 +187,7 @@
     }
     const from={x:moveTarget.x,y:moveTarget.y};
     moveTarget.x=p.x; moveTarget.y=p.y; moveTarget.target={x:p.x,y:p.y};
-    record('move', { x:p.x, y:p.y, target:{kind:'npc',id:moveTarget.id,name:moveTarget.name}, details:`Relocated from (${Math.round(from.x)},${Math.round(from.y)}) to (${Math.round(p.x)},${Math.round(p.y)}).`, entityId:moveTarget.id, consequences:[`${moveTarget.name} was moved by the player.`] });
+    applyEvent('move', { x:p.x, y:p.y, target:{kind:'npc',id:moveTarget.id,name:moveTarget.name}, details:`Relocated from (${Math.round(from.x)},${Math.round(from.y)}) to (${Math.round(p.x)},${Math.round(p.y)}).`, entityId:moveTarget.id, consequences:[`${moveTarget.name} was moved by the player.`] });
     note(`${moveTarget.name} was moved to a new location.`); moveTarget=null; render(); return true;
   }
 
