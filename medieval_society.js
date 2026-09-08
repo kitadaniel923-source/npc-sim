@@ -6,7 +6,8 @@
   const alive=()=>state.npcs.filter(n=>n.alive);
   const role=(n)=>n.roleId||'';
   const score=(n,k)=>P?.score(n,k)??50;
-  const kingdom=n=>state.getKingdom?state.getKingdom(n.kingdomId):state.kingdoms?.find(k=>k.id===n.kingdomId);
+  // NPCs use faction as their kingdom id; settlements use kingdomId.
+  const kingdom=n=>state.getKingdom?state.getKingdom(n.faction||n.kingdomId):state.kingdoms?.find(k=>k.id===(n.faction||n.kingdomId));
   const settlement=n=>state.getSettlement?state.getSettlement(n.settlementId):state.settlements?.find(s=>s.id===n.settlementId);
   const log=t=>window.SIM_API?.log?.(t);
 
