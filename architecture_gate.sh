@@ -24,6 +24,19 @@ if [[ -n "$bad_render_timers" ]]; then
   exit 1
 fi
 
+# The simulation may own the simulation scheduler, but its redraw call must
+# cross the canonical window.SIM_RENDER seam so registered render stages run.
+bad_sim_render=$(grep -nE '[;}][[:space:]]*render\(\)' simulation.js || true)
+if [[ -n "$bad_sim_render" ]]; then
+  echo "FAIL: simulation.js bypasses the canonical render registry"
+  echo "$bad_sim_render"
+  exit 1
+fi
+if ! grep -nF 'function renderNow(){return typeof window.SIM_RENDER' simulation.js >/dev/null; then
+  echo "FAIL: simulation.js is missing the registry-aware render seam"
+  exit 1
+fi
+
 # Retired production modules must not be loaded.
 if grep -nE 'spawn_system\.js|world_persistence\.js|world_persistence_v2\.js' index.html >/dev/null; then
   echo "FAIL: retired module is still loaded by index.html"
@@ -31,5 +44,6 @@ if grep -nE 'spawn_system\.js|world_persistence\.js|world_persistence_v2\.js' in
 fi
 
 echo "PASS: input/render ownership gate"
+echo "PASS: simulation render-registry seam gate"
 echo "PASS: retired-module load gate"
 echo "Deferred: inspector DOM ownership and legacy simulation timers"
