@@ -20,7 +20,7 @@
     k.election = k.election || null;
     k.legitimacy = k.legitimacy ?? 60;
     k.tension = k.tension ?? 0;
-    k.succession = k.succession || {claimants:[],disputed:false};
+    k.succession = k.succession || {claimants:[],disputed:false,history:[],lastRulerId:null};
   }
 
   function politicalPower(n,k){
@@ -52,13 +52,25 @@
     });
   }
 
+  function familyClaim(n,k){
+    if(!n)return 0;
+    const previous=n.parentIds?.map(id=>state.npcs.find(x=>x.id===id)).filter(Boolean)||[];
+    const previousLeaderId=k.succession?.lastRulerId;
+    if(previousLeaderId && previous.some(p=>p.id===previousLeaderId))return 32;
+    if(k.capitalId && n.familyId && state.npcs.find(x=>x.id===k.leaderId)?.familyId===n.familyId)return 22;
+    if((n.roleId==='heir')||n.legitimacy>75)return 16;
+    return 0;
+  }
+
   function candidateScore(n,k){
     let s=politicalPower(n,k)+score(n,'ambition')*.25+score(n,'sociability')*.15+score(n,'kindness')*.08;
-    s += (n.familyId && k.leaderId===n.id)?20:0;
+    s += familyClaim(n,k);
     if(has(n,'charismatic'))s+=12;
     if(has(n,'natural_leader'))s+=15;
     if(has(n,'deceptive'))s-=4;
     if((n.crimes||0)>2)s-=Math.min(20,n.crimes*2);
+    const rememberedFear=(relationships?.get(n,k.leaderId,false)?.trust||50);
+    s += rememberedFear>.75?0:0;
     return s;
   }
 
@@ -68,16 +80,35 @@
       k.legitimacy=clamp((k.legitimacy||60)+((leader.reputation||50)-50)*.003-(k.tension||0)*.002);
       return;
     }
+    const previousLeaderId=k.succession?.lastRulerId||k.leaderId;
+    const previousLeader=previousLeaderId?state.npcs.find(n=>n.id===previousLeaderId):null;
     const ranked=people.filter(n=>n.age>=18).sort((a,b)=>candidateScore(b,k)-candidateScore(a,k));
-    const heir=ranked[0];
+    if(!ranked.length)return;
+    const dynastic=previousLeader?ranked.filter(n=>(n.parentIds||[]).includes(previousLeader.id)||n.familyId===previousLeader.familyId):[];
+    const pool=dynastic.length?dynastic.slice(0,4).concat(ranked.filter(n=>!dynastic.includes(n)).slice(0,4)):ranked.slice(0,8);
+    const heir=pool.sort((a,b)=>candidateScore(b,k)-candidateScore(a,k))[0];
     if(!heir)return;
-    const disputed=ranked.length>1 && candidateScore(ranked[1],k)>candidateScore(heir,k)-6;
+    const second=pool[1];
+    const disputed=!!second&&candidateScore(second,k)>candidateScore(heir,k)-8;
+    const oldRole=previousLeader?.roleId;
+    k.succession.claimants=pool.slice(0,5).map(n=>n.id);
+    k.succession.disputed=disputed;
+    k.succession.lastRulerId=heir.id;
+    k.succession.history=(k.succession.history||[]).concat({year:state.year,rulerId:heir.id,previousRulerId:previousLeader?.id||null,disputed}).slice(-20);
     k.leaderId=heir.id;
     heir.roleId='king'; heir.roleName='King';
-    k.legitimacy=clamp(disputed?48:68);
-    k.succession.claimants=ranked.slice(0,5).map(n=>n.id);
-    k.succession.disputed=disputed;
+    heir.legitimacy=clamp((heir.legitimacy||50)+(dynastic.includes(heir)?18:8));
+    k.legitimacy=clamp(disputed?42+(heir.legitimacy||50)*.18:66+(heir.legitimacy||50)*.12);
+    if(disputed&&second){
+      second.roleId=second.roleId==='king'?'duke':'heir';
+      second.roleName=second.roleId==='duke'?'Duke':'Heir';
+      second.courtClaim=heir.id;
+      second.grievance=clamp((second.grievance||0)+12);
+      memory?.experience(second,`My claim to ${k.name}'s throne was challenged.`,'succession',4,heir.id,'anger',7,true);
+      memory?.experience(heir,`${second.name} disputes my right to rule ${k.name}.`,'succession',4,second.id,'fear',4,true);
+    }
     memory?.experience(heir,`I became ruler of ${k.name}.`,'politics',4,null,'pride',0,true);
+    if(oldRole||previousLeader)memory?.experience(heir,`I succeeded ${previousLeader?.name||'the previous ruler'}.`,'succession',4,previousLeader?.id||null,'pride',-2,true);
     log(`${heir.name} became ruler of ${k.name}${disputed?' amid a disputed succession':''}.`);
   }
 
@@ -85,7 +116,7 @@
     if(people.length<10)return;
     if(k.election && k.election.year===state.year)return;
     if(state.year%4!==0 || state.tick%120!==0)return;
-    const candidates=people.filter(n=>n.age>=25&&['mayor','merchant','trader','baron','count','duke','heir','king','citizen'].includes(n.roleId) || politicalPower(n,k)>35)
+    const candidates=people.filter(n=>(n.age>=25&&['mayor','merchant','trader','baron','count','duke','heir','king','citizen'].includes(n.roleId)) || politicalPower(n,k)>35)
       .sort((a,b)=>candidateScore(b,k)-candidateScore(a,k)).slice(0,8);
     if(candidates.length<2)return;
     const votes=new Map(candidates.map(c=>[c.id,0]));
@@ -96,6 +127,8 @@
         v += politicalPower(c,k)*.12;
         v += factionAffinity(c,'commons')*.05;
         v += has(voter,'loyal')&&c.id===k.leaderId?8:0;
+        v += c.familyId&&voter.familyId===c.familyId?7:0;
+        if(k.election?.winnerId===c.id)v+=3;
         return {c,v};
       }).sort((a,b)=>b.v-a.v);
       if(ranked[0])votes.set(ranked[0].c.id,(votes.get(ranked[0].c.id)||0)+1);
@@ -148,16 +181,13 @@
         const supporters=others.filter(n=>(relationships?.trustValue(n,p.id,relationships?.get(n,p.id,false))||50)>62).length;
         const success=supporters>=2 && (score(p,'ambition')+score(p,'sociability'))>120;
         if(success){
-          ruler.roleId='heir'; ruler.roleName='Heir';
-          p.roleId='king'; p.roleName='King'; k.leaderId=p.id; k.legitimacy=clamp(38+supporters*7);
-          k.tension=clamp((k.tension||0)+15);
+          ruler.roleId='heir'; ruler.roleName='Heir'; p.roleId='king'; p.roleName='King'; k.leaderId=p.id; k.succession.lastRulerId=p.id; k.legitimacy=clamp(38+supporters*7); k.tension=clamp((k.tension||0)+15);
           memory?.experience(p,`${ruler.name} was overthrown by my faction.`,'coup',5,ruler.id,'pride',-5,true);
           memory?.experience(ruler,`${p.name} overthrew me.`,'coup',5,p.id,'anger',12,true);
           log(`${p.name} seized power from ${ruler.name} in ${k.name}.`);
           p.plottingAgainst=null;p.coupPressure=0;
         } else {
-          p.coupPressure=clamp(p.coupPressure+2);
-          p.grievance=clamp((p.grievance||0)+3);
+          p.coupPressure=clamp(p.coupPressure+2);p.grievance=clamp((p.grievance||0)+3);
           memory?.experience(p,`My attempt to seize power failed.`,'politics',3,ruler.id,'anger',5);
         }
       }
@@ -170,15 +200,13 @@
     if((k.tension||0)<35)return;
     if(Math.random()>0.003)return;
     const rebel=unhappy.sort((a,b)=>politicalPower(b,k)-politicalPower(a,k))[0];
-    const supporters=people.filter(n=>n.id!==rebel.id&&n.age>=18&&score(n,'loyalty')<55&&(n.grievance||0)>35)
-      .slice(0,12);
+    const supporters=people.filter(n=>n.id!==rebel.id&&n.age>=18&&score(n,'loyalty')<55&&(n.grievance||0)>35).slice(0,12);
     const strength=politicalPower(rebel,k)+supporters.reduce((s,n)=>s+politicalPower(n,k)*.4,0);
     if(strength<45)return;
     const factionId=`rebel-${rebel.id}-${state.year}`;
     k.rebellions=k.rebellions||[];
     k.rebellions.push({id:factionId,leaderId:rebel.id,supporters:supporters.map(n=>n.id),year:state.year,strength});
-    rebel.roleId='rebel'; rebel.roleName='Rebel';
-    k.tension=clamp((k.tension||0)+20);
+    rebel.roleId='rebel';rebel.roleName='Rebel';k.tension=clamp((k.tension||0)+20);
     people.filter(n=>supporters.some(s=>s.id===n.id)).forEach(n=>{n.roleId='rebel';n.roleName='Rebel';});
     memory?.experience(rebel,`I led a rebellion against ${k.name}.`,'rebellion',4.5,k.id,'anger',8,true);
     log(`${rebel.name} leads a rebellion against ${k.name}.`);
