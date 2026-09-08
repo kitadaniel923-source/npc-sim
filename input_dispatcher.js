@@ -51,40 +51,20 @@
     return false;
   };
 
-  canvas.addEventListener('click', event => {
-    if (dispatch('click', event)) {
+  const intercept = (type, event) => {
+    if (dispatch(type, event)) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      return true;
     }
-  }, true);
+    return false;
+  };
 
-  canvas.addEventListener('wheel', event => {
-    if (dispatch('wheel', event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  }, {capture:true, passive:false});
-
-  canvas.addEventListener('mousedown', event => {
-    if (dispatch('mousedown', event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  }, true);
-
-  window.addEventListener('mousemove', event => {
-    if (dispatch('mousemove', event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  }, true);
-
-  window.addEventListener('mouseup', event => {
-    if (dispatch('mouseup', event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  }, true);
+  canvas.addEventListener('click', event => intercept('click', event), true);
+  canvas.addEventListener('wheel', event => intercept('wheel', event), {capture:true, passive:false});
+  canvas.addEventListener('mousedown', event => intercept('mousedown', event), true);
+  window.addEventListener('mousemove', event => intercept('mousemove', event), true);
+  window.addEventListener('mouseup', event => intercept('mouseup', event), true);
 
   register({
     name:'camera-controls',
@@ -142,6 +122,14 @@
       window.SIM_RENDER?.();
       return true;
     }
+  });
+
+  // Last handler consumes all remaining world clicks so legacy listeners cannot become a second owner.
+  register({
+    name:'world-click-capture',
+    priority:1100,
+    events:['click'],
+    handle:() => true
   });
 
   window.EVERGLEN_INPUT = {
