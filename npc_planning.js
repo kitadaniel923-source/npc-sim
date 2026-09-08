@@ -6,6 +6,7 @@
   const personality = () => window.NPC_PERSONALITY;
   const memory = () => window.NPC_MEMORY;
   const relationships = () => window.NPC_RELATIONSHIPS;
+  const goals = () => window.NPC_GOALS;
 
   function score(n,key){ return personality()?.score(n,key) ?? 50; }
   function trust(n,id){
@@ -110,6 +111,15 @@
         steps:[{action:p.courage>55?'train':'safety',label:p.courage>55?'Prepare for war':'Stay behind the lines'},{action:'socialize',label:'Coordinate with allies'}]
       });
     }
+
+    const goalApi=goals();
+    if(goalApi?.scoreAction){
+      plans.forEach(x=>{
+        const first=x.steps?.[0]?.action;
+        const second=x.steps?.[1]?.action;
+        x.utility += goalApi.scoreAction(n,first)*1.6 + goalApi.scoreAction(n,second)*.65;
+      });
+    }
     return plans;
   }
 
@@ -124,7 +134,8 @@
     const best=plans[0];
     if(!best) return null;
     const previous=n.currentPlan?.id;
-    const reason=`${best.goal} scored highest from current needs, personality and world conditions`;
+    const longTerm=goals()?.refresh?.(n);
+    const reason=`${best.goal} scored highest from current needs, personality, stakes and world conditions`;
     n.currentPlan={
       id:best.id,
       goal:best.goal,
@@ -132,7 +143,8 @@
       createdAt:state.tick,
       score:Math.round(best.utility),
       reason,
-      previous
+      previous,
+      alignedGoalId:longTerm?.id||null
     };
     n.planHistory=n.planHistory||[];
     if(previous && previous!==best.id) n.planHistory.unshift({tick:state.tick,from:previous,to:best.id,reason});
@@ -150,6 +162,7 @@
     if(n.currentPlan.steps[0].action===action) n.currentPlan.steps.shift();
     if(!n.currentPlan.steps.length){
       n.lastCompletedPlan={id:n.currentPlan.id,goal:n.currentPlan.goal,tick:state.tick};
+      window.NPC_GOALS?.recordOutcome?.(n,true,`Completed short-term plan: ${n.currentPlan.goal}`);
       n.currentPlan=null;
     }
   }
@@ -157,6 +170,7 @@
   function fail(n,reason){
     if(!n.currentPlan)return;
     n.planFailure={tick:state.tick,reason};
+    window.NPC_GOALS?.recordOutcome?.(n,false,reason);
     n.currentPlan=null;
     memory()?.remember(n,`My plan failed: ${reason}.`,'planning',2,null,'frustration');
   }
@@ -171,6 +185,7 @@
         n.aiPlanAction=s.action;
         n.aiPlanTarget=s.targetId||null;
       }
+      if(n.longTermGoal) n.goalStakes=n.longTermGoal.stakes||[];
     });
     if(state.tick%60===0){
       alive.forEach(n=>{ if(n.planHistory?.length>1) n.planHistory=n.planHistory.slice(0,8); });
