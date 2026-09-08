@@ -186,7 +186,7 @@
 
   function npcPalette(n){
     const v=n.visual||{};
-    let outfit=v.outfit||'';
+    const outfit=v.outfit||'';
     if(n.classTier==='royal'||outfit==='royal')return {body:C.gold,trim:'#f1e0a1',skin:v.skin||'#b97850'};
     if(n.classTier==='noble'||outfit==='noble')return {body:C.purple,trim:'#d2a9e2',skin:v.skin||'#b97850'};
     if(['military','soldier','knight'].includes(outfit)||['soldier','knight','captain','general','marshal'].includes(n.roleId))return {body:C.blue,trim:'#d5d8db',skin:v.skin||'#b97850'};
@@ -256,7 +256,6 @@
   }
 
   window.EVERGLEN_2D_ART={canvas,draw,resize};
-  window.addEventListener('resize',draw);
-  setInterval(()=>{if(state.running)draw()},120);
-  draw();
+  window.EVERGLEN_RENDER?.register?.({name:'art-2d',priority:200,draw});
+  resize();
 })();
