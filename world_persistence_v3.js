@@ -4,7 +4,8 @@
   if (!state) return;
 
   const KEY = 'everglen.world.v3';
-  const LEGACY_KEY = 'everglen.world.v2';
+  const LEGACY_V2_KEY = 'everglen.world.v2';
+  const LEGACY_V1_KEY = 'everglen.world.v1';
   const VERSION = 3;
   const AUTO_SAVE_MS = 30000;
   const RUNTIME = new Set([
@@ -20,9 +21,7 @@
     if (value instanceof ArrayBuffer) {
       return { __everglenType: 'ArrayBuffer', data: Array.from(new Uint8Array(value)) };
     }
-    if (Array.isArray(value)) {
-      return value.map(encode).filter(v => v !== undefined);
-    }
+    if (Array.isArray(value)) return value.map(encode).filter(v => v !== undefined);
     if (value && typeof value === 'object') {
       const out = {};
       for (const [key, item] of Object.entries(value)) {
@@ -118,42 +117,53 @@
     }
   }
 
-  function parse(raw) {
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.state) return null;
-    if (parsed.schema !== 'everglen-world' || parsed.version !== VERSION) return null;
-    return parsed;
+  function migrated(raw, sourceVersion, sourceState, sourceMeta = {}) {
+    const normalized = normalizeLegacyTyped(sourceState || {});
+    return {
+      schema: 'everglen-world',
+      version: VERSION,
+      savedAt: raw.savedAt || sourceMeta.savedAt || new Date().toISOString(),
+      invariants: {
+        runtimeExcluded: true,
+        typedArraysEncoded: true,
+        relationReferences: 'id-only',
+        playerInterventionsPersisted: Array.isArray(normalized.playerInterventions)
+      },
+      meta: sourceMeta || {
+        year: raw.year || 1,
+        day: raw.day || 1,
+        population: raw.population || 0,
+        settlements: raw.settlements || 0,
+        playerInterventions: (normalized.playerInterventions || []).length
+      },
+      state: encode(normalized),
+      migratedFrom: sourceVersion
+    };
   }
 
   function read() {
     try {
-      const current = parse(localStorage.getItem(KEY));
-      if (current) return current;
-      const legacyRaw = localStorage.getItem(LEGACY_KEY);
-      if (!legacyRaw) return null;
-      const legacy = JSON.parse(legacyRaw);
-      if (legacy?.version !== 2 || !legacy.state) return null;
-      legacy.state = normalizeLegacyTyped(legacy.state);
-      return {
-        schema: 'everglen-world',
-        version: VERSION,
-        savedAt: legacy.savedAt || new Date().toISOString(),
-        invariants: {
-          runtimeExcluded: true,
-          typedArraysEncoded: true,
-          relationReferences: 'id-only',
-          playerInterventionsPersisted: Array.isArray(legacy.state.playerInterventions)
-        },
-        meta: legacy.meta || {
-          year: legacy.year || 1,
-          day: legacy.day || 1,
-          population: legacy.population || 0,
-          settlements: legacy.settlements || 0,
-          playerInterventions: (legacy.state.playerInterventions || []).length
-        },
-        state: encode(legacy.state)
-      };
+      const current = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (current?.schema === 'everglen-world' && current.version === VERSION && current.state) return current;
+
+      const legacyV2 = JSON.parse(localStorage.getItem(LEGACY_V2_KEY) || 'null');
+      if (legacyV2?.version === 2 && legacyV2.state) return migrated(legacyV2, 2, legacyV2.state, legacyV2.meta || {
+        year: legacyV2.year || 1,
+        day: legacyV2.day || 1,
+        population: legacyV2.population || 0,
+        settlements: legacyV2.settlements || 0,
+        playerInterventions: (legacyV2.state.playerInterventions || []).length
+      });
+
+      const legacyV1 = JSON.parse(localStorage.getItem(LEGACY_V1_KEY) || 'null');
+      if (legacyV1?.state) return migrated(legacyV1, 1, legacyV1.state, legacyV1.meta || {
+        year: legacyV1.meta?.year || legacyV1.year || 1,
+        day: legacyV1.meta?.day || legacyV1.day || 1,
+        population: legacyV1.meta?.population || legacyV1.population || 0,
+        settlements: legacyV1.meta?.settlements || legacyV1.settlements || 0,
+        playerInterventions: (legacyV1.state.playerInterventions || []).length
+      });
+      return null;
     } catch (error) {
       console.error('Everglen load read failed:', error);
       return null;
@@ -207,12 +217,12 @@
 
   state.saveWorld = () => save(false);
   state.loadWorld = () => load(false);
-  state.hasSave = () => !!localStorage.getItem(KEY) || !!localStorage.getItem(LEGACY_KEY);
+  state.hasSave = () => !!localStorage.getItem(KEY) || !!localStorage.getItem(LEGACY_V2_KEY) || !!localStorage.getItem(LEGACY_V1_KEY);
   window.EVERGLEN_PERSISTENCE = { KEY, VERSION, snapshot, save, load, hasSave: state.hasSave };
 
   injectControls();
   setTimeout(injectControls, 0);
-  setTimeout(() => { if (localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY)) load(false); }, 250);
+  setTimeout(() => { if (state.hasSave()) load(false); }, 250);
   setInterval(() => { if (state.running) save(false); }, AUTO_SAVE_MS);
   window.addEventListener('beforeunload', () => save(false));
 })();
