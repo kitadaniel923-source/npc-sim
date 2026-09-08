@@ -1,15 +1,14 @@
 (() => {
   const state=window.SIM_STATE;if(!state)return;
   const esc=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
-  const arr=(v)=>Array.isArray(v)?v:[];
+  const arr=v=>Array.isArray(v)?v:[];
   const el=(tag,attrs={},html='')=>{const e=document.createElement(tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));e.innerHTML=html;return e;};
   const history=()=>{
     const out=[];
-    (state.settlements||[]).forEach(s=>arr(s.history).forEach((text,i)=>out.push({year:Number((String(text).match(/Year\s+(\d+)/i)||[])[1]||state.year),type:'Settlement',title:s.name,text,ref:s.id,icon:'🏘️'})));
-    (state.kingdoms||[]).forEach(k=>{arr(k.history).forEach((text)=>out.push({year:Number((String(text).match(/Year\s+(\d+)/i)||[])[1]||state.year),type:'Kingdom',title:k.name,text,ref:k.id,icon:'👑'}));arr(k.strategy?.history).forEach(x=>{const text=typeof x==='string'?x:(x.text||x.event||'Strategic development');out.push({year:Number(x?.year||state.year),type:'Strategy',title:k.name,text,ref:k.id,icon:'♟️'});});});
+    (state.settlements||[]).forEach(s=>arr(s.history).forEach(text=>out.push({year:Number((String(text).match(/Year\s+(\d+)/i)||[])[1]||state.year),type:'Settlement',title:s.name,text,ref:s.id,icon:'🏘️'})));
+    (state.kingdoms||[]).forEach(k=>{arr(k.history).forEach(text=>out.push({year:Number((String(text).match(/Year\s+(\d+)/i)||[])[1]||state.year),type:'Kingdom',title:k.name,text,ref:k.id,icon:'👑'}));arr(k.strategy?.history).forEach(x=>{const text=typeof x==='string'?x:(x.text||x.event||'Strategic development');out.push({year:Number(x?.year||state.year),type:'Strategy',title:k.name,text,ref:k.id,icon:'♟️'});});});
     (state.internationalHistory?.events||[]).forEach(x=>out.push({year:Number(x.year||state.year),type:'International',title:x.title||'International event',text:x.text||x.description||'A major international shift occurred.',ref:x.id||null,icon:'🌍'}));
     (state.regionalHistory?.events||[]).forEach(x=>out.push({year:Number(x.year||state.year),type:'Regional',title:x.regionName||x.title||'Regional event',text:x.text||x.description||x.event||'A regional event reshaped the world.',ref:x.id||null,icon:'📜'}));
-    arr(state.feed).forEach(text=>out.push({year:Number((String(text).match(/Year\s+(\d+)/i)||[])[1]||state.year),type:'Chronicle',title:'World Chronicle',text,ref:null,icon:'🕯️'}));
     return out.sort((a,b)=>b.year-a.year).slice(0,250);
   };
   function mount(){
@@ -20,7 +19,7 @@
     document.body.appendChild(modal);
     document.getElementById('chronicleClose').onclick=()=>modal.style.display='none';
     modal.addEventListener('click',e=>{if(e.target===modal)modal.style.display='none'});
-    const side=document.getElementById('chronicleFilters');const filters=['All','Kingdom','Settlement','Regional','Strategy','International','Chronicle'];let active='All';
+    const side=document.getElementById('chronicleFilters');const filters=['All','Kingdom','Settlement','Regional','Strategy','International'];let active='All';
     filters.forEach(f=>{const b=el('button',{class:'chronicle-filter'+(f==='All'?' active':'')},f);b.onclick=()=>{active=f;side.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');render(active)};side.appendChild(b)});
     document.getElementById('chronicleYear').onchange=()=>render(active);
     function render(filter){
@@ -29,9 +28,7 @@
       const c=document.getElementById('chronicleContent');if(!shown.length){c.innerHTML='<div class="chronicle-empty">No recorded events in this view yet.</div>';return;}let lastYear=null;c.innerHTML=shown.map(x=>{const era=lastYear!==x.year?`<div class="chronicle-era">Year ${x.year}</div>`:'';lastYear=x.year;return `${era}<article class="chronicle-item"><div class="chronicle-card"><div class="chronicle-meta"><span>${x.icon}</span><span>${esc(x.type)}</span></div><div class="chronicle-title">${esc(x.title)}</div><div class="chronicle-text">${esc(x.text)}</div></div></article>`}).join('');
     }
     window.EVERGLEN_CHRONICLE={open:()=>{modal.style.display='flex';render(active);},refresh:()=>render(active)};
-    const btn=el('button',{id:'openChronicle'},'📖 Chronicle');const controls=document.querySelector('.controls');if(controls)controls.insertBefore(btn,controls.querySelector('.danger')||null);
-    btn.onclick=window.EVERGLEN_CHRONICLE.open;
-    setInterval(()=>{if(modal.style.display==='flex')render(active)},1200);
+    const btn=el('button',{id:'openChronicle'},'📖 Chronicle');const controls=document.querySelector('.controls');if(controls)controls.insertBefore(btn,controls.querySelector('.danger')||null);btn.onclick=window.EVERGLEN_CHRONICLE.open;
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
