@@ -1,4 +1,4 @@
-// Everglen border recognition: infer, cache and render political frontiers.
+// Everglen border recognition: infer, cache and register political frontier rendering.
 (() => {
   const state = window.SIM_STATE;
   if (!state) return;
@@ -7,9 +7,6 @@
   if (!viewport) return;
 
   const W = 320, H = 180, STEP = 35;
-  const clamp = (v,a=0,b=100) => Math.max(a, Math.min(b, v));
-  const alive = () => (state.npcs || []).filter(n => n.alive);
-
   const ownerKey = v => v === null || v === undefined || v === '' ? null : String(v);
   const key = (x,y) => `${Math.round(x)},${Math.round(y)}`;
 
@@ -56,8 +53,7 @@
   }
 
   function kingdomInfo(id) {
-    const k = (state.kingdoms || []).find(x => ownerKey(x.id) === ownerKey(id));
-    return k || null;
+    return (state.kingdoms || []).find(x => ownerKey(x.id) === ownerKey(id)) || null;
   }
 
   function palette(id) {
@@ -70,8 +66,6 @@
 
   function build() {
     const cells = [], byCell = new Map(), borders = [];
-    const cols = Math.ceil(2300 / STEP) + 1;
-    const rows = Math.ceil(1520 / STEP) + 1;
     for (let gy = -760; gy <= 760; gy += STEP) {
       for (let gx = -1150; gx <= 1150; gx += STEP) {
         const owner = nearestOwner(gx,gy);
@@ -79,10 +73,9 @@
         cells.push(c); byCell.set(key(gx,gy), c);
       }
     }
-    const dirs = [[STEP,0],[0,STEP]];
     for (const c of cells) {
       if (!c.owner) continue;
-      for (const [dx,dy] of dirs) {
+      for (const [dx,dy] of [[STEP,0],[0,STEP]]) {
         const n = byCell.get(key(c.x+dx,c.y+dy));
         if (!n || !n.owner || n.owner === c.owner) continue;
         borders.push({x1:c.x,y1:c.y,x2:n.x,y2:n.y,a:c.owner,b:n.owner,
@@ -151,9 +144,7 @@
     state.borderRecognition.frontiers = [...frontier.values()].map(f=>({...f,neighbors:[...f.neighbors]}));
   }
 
-  function ownerAt(x,y) {
-    return nearestOwner(x,y);
-  }
+  function ownerAt(x,y) { return nearestOwner(x,y); }
   function isForeign(n,x,y) {
     if (!n) return false;
     const home = ownerAt(n.x,n.y), there = ownerAt(x,y);
@@ -170,11 +161,11 @@
     if (state.tick === last) return;
     last=state.tick;
     if (state.tick % 18 === 0 || !state.borderRecognition) recalculate();
-    draw();
   }
 
   state.showBorders = state.showBorders !== false;
   window.BORDER_RECOGNITION = {recalculate,draw,ownerAt,isForeign,borderBetween,nearestOwner};
   if (state.registerSystem) state.registerSystem({name:'border-recognition',step,priority:108});
-  else setInterval(step,300);
+  window.EVERGLEN_RENDER?.register?.({name:'border-recognition',priority:300,draw});
+  recalculate();
 })();
