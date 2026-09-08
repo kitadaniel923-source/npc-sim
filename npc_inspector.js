@@ -60,10 +60,11 @@
     const n = selected();
     if (!n) return;
 
+    root.querySelector('.ai-inspector-details')?.remove();
+
     const kingdom = state.kingdoms.find(k => k.id === n.faction);
     const settlement = state.settlements.find(s => s.id === n.settlementId);
     const family = state.families.find(f => f.id === n.familyId);
-    const clan = family ? state.clans.find(c => c.id === family.clanId) : null;
     const memories = Array.isArray(n.memories) ? n.memories : [];
     const needs = n.needs || {};
     const career = n.careerHistory?.[n.careerHistory.length - 1] || n.career || n.roleName;
@@ -86,7 +87,7 @@
       ['Purpose', needs.purpose]
     ].filter(([,v]) => v != null).map(([label,v]) => `${label} ${Math.round(clamp(v))}`).join(' · ');
 
-    root.innerHTML += `
+    root.insertAdjacentHTML('beforeend', `<div class="ai-inspector-details">
       <div class="goal"><b>Why now:</b> ${esc(n.decisionReason || n.planFailure?.reason || n.reason || 'No explicit reason recorded.')}</div>
       <div class="bio-grid">
         <span>Career<b>${esc(typeof career === 'string' ? career : career?.career || n.roleName)}</b></span>
@@ -105,22 +106,14 @@
       ${planSection(n)}
       ${relationshipsSection(n)}
       <h4>Recent memory</h4>
-      <div class="memories">${memories.slice(0,10).map(m => `<div>Y${esc(m.year ?? state.year)} · ${esc(m.text || m.kind || 'Memory')}</div>`).join('') || '<div>No consequential memories recorded.</div>'}</div>
-      ${n.planHistory?.length ? `<h4>Plan history</h4><div class="memories">${n.planHistory.slice(-5).map(x => `<div>${esc(typeof x==='string' ? x : x.name || x.type || 'Completed plan')}</div>`).join('')}</div>` : ''}
-    `;
+      <div class="memories">${memories.slice(0,10).map(m=>`<div>Y${esc(m.year ?? state.year)} · ${esc(m.text || m.kind || 'Memory')}</div>`).join('') || '<div>No consequential memories recorded.</div>'}</div>
+      ${n.planHistory?.length ? `<h4>Plan history</h4><div class="memories">${n.planHistory.slice(-5).map(x=>`<div>${esc(typeof x==='string' ? x : x.name || x.type || 'Completed plan')}</div>`).join('')}</div>` : ''}
+    </div>`);
   }
 
   window.SIM_RENDER = () => {
     baseRender();
-    try {
-      const root=document.getElementById('inspectorContent');
-      const n=selected();
-      if(root&&n){
-        const existing=root.innerHTML;
-        if(existing.includes('<div class="person-head">')) renderInspector();
-        else renderInspector();
-      }
-    } catch (error) { console.error('Inspector render error', error); }
+    try { renderInspector(); } catch (error) { console.error('Inspector render error:', error); }
   };
 
   window.NPC_INSPECTOR = {render: renderInspector};
