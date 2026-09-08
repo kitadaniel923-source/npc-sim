@@ -1,7 +1,7 @@
 (() => {
   const state=window.SIM_STATE; if(!state)return;
-  const render=window.SIM_RENDER; if(typeof render!=='function')return;
-  const ctxOf=()=>document.getElementById('worldCanvas')?.getContext('2d');
+  const canvas=document.getElementById('worldCanvas');
+  const ctxOf=()=>canvas?.getContext('2d');
   const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
   function colors(n){const v=n.visual||{},map={plain:'#6d8a79',worker:'#87684e',merchant:'#8066a6',military:'#5f748b',noble:'#a98b57',royal:'#c6a24d'};return{skin:v.skin||'#b97950',hair:v.hair||'#2a211d',cloth:map[v.outfit||'plain']||map.plain};}
   function drawWorldOverlay(ctx){
@@ -38,14 +38,16 @@
     if(n.id===state.selected){ctx.strokeStyle='#fff';ctx.globalAlpha=.95;ctx.lineWidth=2.4;ctx.beginPath();ctx.arc(0,0,r*1.95,0,Math.PI*2);ctx.stroke();}
     ctx.restore();
   }
-  window.EVERGLEN_NPC_VISUALS={drawNPC,drawWorldOverlay,drawRelationshipLinks};
-  window.SIM_RENDER=()=>{
-    render();const ctx=ctxOf(),canvas=document.getElementById('worldCanvas');if(!ctx||!canvas)return;
-    ctx.save();ctx.translate(canvas.clientWidth/2-state.camera.x*state.camera.zoom,canvas.clientHeight/2-state.camera.y*state.camera.zoom);ctx.scale(state.camera.zoom,state.camera.zoom);
+  function draw(){
+    const ctx=ctxOf(); if(!ctx||!canvas)return;
+    ctx.save();
+    ctx.translate(canvas.clientWidth/2-state.camera.x*state.camera.zoom,canvas.clientHeight/2-state.camera.y*state.camera.zoom);
+    ctx.scale(state.camera.zoom,state.camera.zoom);
     drawWorldOverlay(ctx);
     const selected=state.npcs.find(n=>n.id===state.selected&&n.alive);if(selected)drawRelationshipLinks(ctx,selected);
     state.npcs.filter(n=>n.alive).forEach(n=>drawNPC(ctx,n));
     ctx.restore();
-  };
-  setInterval(()=>{if(state.running)window.SIM_RENDER();},850);
+  }
+  window.EVERGLEN_NPC_VISUALS={draw,drawNPC,drawWorldOverlay,drawRelationshipLinks};
+  window.EVERGLEN_RENDER?.register?.({name:'npc-visuals',priority:250,draw});
 })();
