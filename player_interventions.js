@@ -3,6 +3,7 @@
   const state = window.SIM_STATE;
   if (!state) return;
 
+  const MAX_INTERVENTIONS = 2500;
   state.playerInterventions = Array.isArray(state.playerInterventions) ? state.playerInterventions : [];
   let sequence = state.playerInterventions.length;
 
@@ -31,7 +32,7 @@
       createdAt: new Date().toISOString()
     };
     state.playerInterventions.unshift(entry);
-    state.playerInterventions = state.playerInterventions.slice(0, 5000);
+    state.playerInterventions = state.playerInterventions.slice(0, MAX_INTERVENTIONS);
     return entry;
   }
 
@@ -44,6 +45,6 @@
     sequence = 0;
   }
 
-  window.EVERGLEN_PLAYER = { record, recent, history: recent, clear };
+  window.EVERGLEN_PLAYER = { record, recent, history: recent, clear, MAX_INTERVENTIONS };
   window.EVERGLEN_PLAYER_RECORD = record;
 })();
