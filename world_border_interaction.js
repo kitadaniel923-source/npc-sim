@@ -8,13 +8,12 @@
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const kingdom = id => (state.kingdoms || []).find(k => String(k.id) === String(id));
-  const ownerName = id => kingdom(id)?.name || `Kingdom ${id}`;
+  const ownerName = id => kingdom(id)?.name || (id == null ? 'None' : `Kingdom ${id}`);
   const frontierFor = id => (state.borderRecognition?.frontiers || []).find(f => String(f.kingdomId) === String(id)) || null;
   const rulerFor = id => {
     const k = kingdom(id);
     return k?.leaderId ? (state.npcs || []).find(n => String(n.id) === String(k.leaderId) && n.alive) : null;
   };
-  const worldToTile = p => window.SIM_API?.worldToTile?.(p.x, p.y) || null;
   const tileId = p => window.SIM_API?.tileId?.(p.x, p.y);
   const organicOwner = p => {
     const id = tileId(p);
@@ -81,6 +80,12 @@
     catch (_) { return null; }
   }
 
+  function refreshAfterTerritoryChange(p) {
+    window.BORDER_RECOGNITION?.recalculate?.();
+    window.SIM_RENDER?.();
+    inspect(p);
+  }
+
   function claimTerritory(info, kingdomId) {
     const p = {x:Number(info.x), y:Number(info.y)};
     const target = kingdom(kingdomId);
@@ -105,8 +110,7 @@
       consequences:[`Tile ${id} is now biased toward ${target.name}.`,`Organic territory calculation remains authoritative after the claim is revoked.`]
     });
     state.selectedBorder={...info,territoryClaimed:true,playerClaim:target.id};
-    window.SIM_RENDER?.();
-    inspect(p);
+    refreshAfterTerritoryChange(p);
     return true;
   }
 
@@ -126,8 +130,7 @@
       consequences:[`Removed the player override at tile ${id}.`,`Territory was recomputed organically.`]
     });
     state.selectedBorder={...info,territoryClaimed:false};
-    window.SIM_RENDER?.();
-    inspect(p);
+    refreshAfterTerritoryChange(p);
     return true;
   }
 
@@ -148,13 +151,13 @@
       consequences:[`${a.name} and ${b.name} were placed into a targeted border war.`,`This is distinct from the global War toggle.`]
     });
     state.selectedBorder={...info,forcedWar:true,warId:war.id};
+    window.BORDER_RECOGNITION?.recalculate?.();
     window.SIM_RENDER?.();
     inspect({x:Number(info.x),y:Number(info.y)});
     return true;
   }
 
   function inspect(p) {
-    const owner=window.BORDER_RECOGNITION.ownerAt(p.x,p.y);
     const b=nearestBorder(p);
     const controls=territoryControls(p);
     if(b && b.distance<34){
@@ -167,10 +170,11 @@
       state.selectedBorder=lastInfo;
       return true;
     }
+    const owner=organicOwner(p);
     if(owner){
       const k=kingdom(owner), f=frontierFor(owner);
       lastInfo={type:'territory',kingdomId:owner,x:p.x,y:p.y};
-      popup(`<strong>🏰 Territory</strong><div style="margin-top:6px"><b>${esc(k?.name||ownerName(owner))}</b></div><div style="margin-top:5px">Power ${Math.round(k?.power||0)} • Legitimacy ${Math.round(k?.legitimacy||0)} • Tension ${Math.round(k?.tension||0)}</div><div style="margin-top:4px">Neighbors: ${Math.max(0,(f?.neighbors||[]).length)}</div><div style="margin-top:4px">Frontier: ${Math.round(f?.borderLength||0)} world-units</div>${controls}</div>`);
+      popup(`<strong>🏰 Territory</strong><div style="margin-top:6px"><b>${esc(k?.name||ownerName(owner))}</b></div><div style="margin-top:5px">Power ${Math.round(k?.power||0)} • Legitimacy ${Math.round(k?.legitimacy||0)} • Tension ${Math.round(k?.tension||0)}</div><div style="margin-top:4px">Neighbors: ${Math.max(0,(f?.neighbors||[]).length)}</div><div style="margin-top:4px">Frontier: ${Math.round(f?.borderLength||0)} world-units</div>${controls}`);
       state.selectedBorder=lastInfo;
       return true;
     }
