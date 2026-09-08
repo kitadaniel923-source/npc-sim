@@ -1,4 +1,4 @@
-// Everglen player event pipeline: one canonical path for attribution, history, entity tags and player-caused memories.
+// Everglen player event pipeline: one canonical path for attribution, history, entity tags, player-caused memories and feedback.
 (() => {
   const state = window.SIM_STATE;
   if (!state) return;
@@ -44,6 +44,15 @@
         interventionId: entry?.id || null
       });
     });
+    if (details.memory && window.EVERGLEN_NOTIFY) {
+      window.EVERGLEN_NOTIFY({
+        type: 'player-intervention',
+        text: details.feedbackText || details.details || `Player intervention: ${action}`,
+        cause: 'player',
+        x: details.x,
+        y: details.y
+      });
+    }
     return entry;
   }
 
