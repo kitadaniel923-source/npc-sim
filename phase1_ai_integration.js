@@ -8,6 +8,8 @@
   const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
   const goals = () => window.NPC_GOALS;
   const personality = () => window.NPC_PERSONALITY;
+  const careerSeen = new Map();
+  const actionSeen = new Map();
 
   function ensure(n) {
     if (!n) return;
@@ -43,7 +45,7 @@
 
   function wrapDecisionEngine() {
     const api = window.NPC_DECISIONS;
-    if (!api || api.__phase1Wrapped) return;
+    if (!api || api.__phase1DecisionWrapped) return;
     const original = api.choose;
     if (typeof original !== 'function') return;
     api.choose = function(n) {
@@ -52,63 +54,54 @@
       applyGoalInfluence(n);
       return result;
     };
-    api.__phase1Wrapped = true;
+    api.__phase1DecisionWrapped = true;
   }
 
-  function wrapCareerSystem() {
-    const api = window.NPC_CAREERS;
-    if (!api || api.__phase1Wrapped) return;
-    const original = api.chooseCareer;
-    if (typeof original !== 'function') return;
-    api.chooseCareer = function(n) {
-      ensure(n);
-      const before = n.roleId;
-      const result = original(n);
-      if (n.roleId !== before && n.longTermGoal) {
-        n.aiCareerReason = `Career selected to support ${n.longTermGoal.label}`;
-        n.career = n.career || {};
-        n.career.goalId = n.longTermGoal.id;
-        n.career.goalScore = n.longTermGoal.score;
-        window.NPC_MEMORY?.remember?.(n, `${n.lastAction}. This career supports my goal to ${n.longTermGoal.label.toLowerCase()}.`, 'career', 2, null, 'pride');
-      }
-      return result;
-    };
-    api.__phase1Wrapped = true;
+  function syncCareer(n) {
+    if (!n?.alive || n.age < 18) return;
+    const role = n.roleId || 'citizen';
+    const previous = careerSeen.get(n.id);
+    careerSeen.set(n.id, role);
+    if (previous === undefined || previous === role || !n.longTermGoal) return;
+    n.aiCareerReason = `Career change supports ${n.longTermGoal.label}`;
+    n.career = n.career || {};
+    n.career.goalId = n.longTermGoal.id;
+    n.career.goalScore = n.longTermGoal.score || 0;
+    n.career.goalHistory = n.career.goalHistory || [];
+    n.career.goalHistory.unshift({tick:state.tick,role,goalId:n.longTermGoal.id});
+    n.career.goalHistory = n.career.goalHistory.slice(0,6);
+    window.NPC_MEMORY?.remember?.(n, `${n.lastAction || `Became a ${n.roleName || role}`}. My career now supports ${n.longTermGoal.label.toLowerCase()}.`, 'career', 2, null, 'pride');
   }
 
-  function wrapBehavior() {
-    const api = window.NPC_BEHAVIOR;
-    if (!api || api.__phase1Wrapped) return;
-    const original = api.action;
-    if (typeof original !== 'function') return;
-    api.action = function(n) {
-      const before = n?.lastAction;
-      const goalId = n?.longTermGoal?.id;
-      const action = n?.aiDecision?.action;
-      const result = original(n);
-      if (n && action) {
-        const changed = n.lastAction !== before;
-        const success = changed || ['eat','drink','rest','socialize','belong','work','wealth','trade','safety','explore','govern','train','study'].includes(action);
-        if (goalId && goals()?.recordOutcome) {
-          goals().recordOutcome(n, !!success, success ? `Completed ${action}` : `Failed ${action}`);
-        }
-        if (success && changed) {
-          personality()?.develop?.(n, action === 'confront' ? 'leadership' : action, .25);
-        }
-      }
-      return result;
-    };
-    api.__phase1Wrapped = true;
+  function syncAction(n) {
+    if (!n?.alive || !n.aiDecision?.action) return;
+    const action = n.aiDecision.action;
+    const key = `${n.lastDecisionAt || state.tick}:${action}`;
+    if (actionSeen.get(n.id) === key) return;
+    actionSeen.set(n.id, key);
+    const goalId = n.longTermGoal?.id;
+    if (!goalId) return;
+    const actionSucceeded = !!n.lastAction && !/^Failed/i.test(n.lastAction);
+    goals()?.recordOutcome?.(n, actionSucceeded, actionSucceeded ? `Completed ${action}` : `Attempted ${action}`);
+    if (actionSucceeded) {
+      const growthMap = {work:'work',wealth:'work',train:'combat',study:'study',explore:'explore',socialize:'social',confront:'leadership',govern:'leadership'};
+      const growth = growthMap[action];
+      if (growth) personality()?.develop?.(n, growth, .15);
+    }
   }
 
   function step() {
     if (!state.running) return;
     wrapDecisionEngine();
-    wrapCareerSystem();
-    wrapBehavior();
-    const selected = state.npcs?.find(n => n.id === state.selected && n.alive);
+    const people = state.npcs || [];
+    people.forEach(n => {
+      if (!n.alive) return;
+      ensure(n);
+      syncCareer(n);
+      syncAction(n);
+    });
+    const selected = people.find(n => n.id === state.selected && n.alive);
     if (selected) {
-      ensure(selected);
       selected.ai.goal = selected.longTermGoal?.label || 'No long-term goal';
       selected.ai.goalCategory = selected.longTermGoal?.category || null;
     }
