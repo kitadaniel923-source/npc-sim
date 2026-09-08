@@ -8,10 +8,12 @@
   const map=document.getElementById('worldViewport');
   if(!map)return;
   const getSettlements=()=>state.settlements||[];
-  const getNpcSettlement=n=>state.getSettlement?state.getSettlement(n.settlementId):getSettlements().find(s=>s.id===n.settlementId);
-  const pos=s=>({x:s.x??Math.random()*800,y:s.y??Math.random()*500});
-  const dist=(a,b)=>Math.hypot((a.x??0)-(b.x??0),(a.y??0)-(b.y??0));
+  const pos=s=>({x:Number(s.x)||0,y:Number(s.y)||0});
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const inventory=s=>{s.resources=s.resources||{};return s.resources;};
+  const residents=s=>alive().filter(n=>n.settlementId===s.id);
+  const stock=(s,r)=>inventory(s)[r]||0;
+  const demand=(s,r)=>{const p=Math.max(1,residents(s).length);const targets={food:p*1.4,grain:p*.6,wood:p*.4,stone:p*.28,iron:p*.18,tools:p*.12,weapons:p*.12,armor:p*.08,cloth:p*.14,medicine:p*.08,books:p*.03};return targets[r]??p*.1;};
 
   function roadBetween(a,b,kind='road'){
     return{id:`road-${a.id}-${b.id}`,from:a.id,to:b.id,kind,length:dist(pos(a),pos(b)),condition:85,capacity:12,traffic:0};
@@ -26,32 +28,31 @@
   function createRoute(a,b,resource){const existing=routeFor(a,b);if(existing)return existing;const id=`route-${logistics.routes.length+1}`;const r={id,from:a.id,to:b.id,resource,volume:2,profit:0,active:true,kind:(a.advanced?.projects?.ports||0)+(b.advanced?.projects?.ports||0)>0?'coastal':'caravan'};logistics.routes.push(r);return r;}
   function seedRoutes(ss){
     if(ss.length<2)return;
-    const food=ss.slice().sort((a,b)=>(b.economy?.foodSecurity||b.foodSecurity||0)-(a.economy?.foodSecurity||a.foodSecurity||0));
-    const rich=ss.slice().sort((a,b)=>((b.wealth||0)-(a.wealth||0)));
-    if(food[0]&&rich[0]&&food[0].id!==rich[0].id)createRoute(food[0],rich[0],'food');
-    const ores=ss.find(s=>(s.resources?.iron||0)>5)||rich[0], smith=ss.find(s=>(s.resources?.weapons||0)<4)||food[0];
-    if(ores&&smith&&ores.id!==smith.id)createRoute(ores,smith,'iron');
-    const scholar=ss.find(s=>(s.advanced?.projects?.archives||0)>0||(s.advanced?.projects?.printingHouse||0)>0);
-    if(scholar&&rich[0]&&scholar.id!==rich[0].id)createRoute(scholar,rich[0],'books');
+    const resourcePriority=['food','grain','wood','stone','iron','tools','weapons','armor','medicine','cloth','books'];
+    for(const resource of resourcePriority){
+      const source=ss.filter(s=>stock(s,resource)>demand(s,resource)*1.35).sort((a,b)=>(stock(b,resource)-demand(b,resource))-(stock(a,resource)-demand(a,resource)))[0];
+      const dest=ss.filter(s=>s.id!==source?.id&&stock(s,resource)<demand(s,resource)*.55).sort((a,b)=>(stock(a,resource)/Math.max(1,demand(a,resource)))-(stock(b,resource)/Math.max(1,demand(b,resource))))[0];
+      if(source&&dest)createRoute(source,dest,resource);
+    }
   }
   function transfer(route,from,to){
-    const invFrom=inventory(from),invTo=inventory(to),amount=Math.min(route.volume,invFrom[route.resource]||0);if(amount<=0)return 0;
-    invFrom[route.resource]-=amount;invTo[route.resource]=(invTo[route.resource]||0)+amount;route.profit+=money(amount*(route.resource==='books'?5:route.resource==='iron'?2:1));return amount;
+    const invFrom=inventory(from),invTo=inventory(to),available=stock(from,route.resource),target=demand(to,route.resource),amount=Math.min(route.volume,available,Math.max(0,target-stock(to,route.resource)));if(amount<=0)return 0;
+    invFrom[route.resource]=Math.max(0,available-amount);invTo[route.resource]=stock(to,route.resource)+amount;route.profit+=money(amount*(route.resource==='books'?5:route.resource==='iron'?2:1));route.lastDelivery={year:state.year,amount,resource:route.resource};return amount;
   }
   function spawnCaravan(route,ss){
     const from=ss.find(s=>s.id===route.from),to=ss.find(s=>s.id===route.to);if(!from||!to)return;
-    const a=pos(from),b=pos(to);logistics.caravans.push({id:`caravan-${++logistics.tick}`,routeId:route.id,from:from.id,to:to.id,x:a.x,y:a.y,progress:0,speed:.055+.02*Math.random(),cargo:Math.max(1,route.volume),health:100});
+    const a=pos(from);logistics.caravans.push({id:`caravan-${++logistics.tick}`,routeId:route.id,from:from.id,to:to.id,x:a.x,y:a.y,progress:0,speed:.055+.02*Math.random(),cargo:Math.max(1,route.volume),health:100});
   }
   function updateCaravans(ss){
-    logistics.routes.forEach(route=>{if(!route.active)return;const active=logistics.caravans.some(c=>c.routeId===route.id);if(!active&&Math.random()<.18)spawnCaravan(route,ss);});
-    logistics.caravans=logistics.caravans.filter(c=>{const route=logistics.routes.find(r=>r.id===c.routeId),from=ss.find(s=>s.id===c.from),to=ss.find(s=>s.id===c.to);if(!route||!from||!to)return false;const a=pos(from),b=pos(to);c.progress=Math.min(1,c.progress+c.speed);c.x=a.x+(b.x-a.x)*c.progress;c.y=a.y+(b.y-a.y)*c.progress;if(c.progress>=1){transfer(route,from,to);route.volume=clamp(route.volume+(Math.random()-.35),1,24);route.active=true;return false;}return true;});
+    logistics.routes.forEach(route=>{if(!route.active)return;const active=logistics.caravans.some(c=>c.routeId===route.id);const from=ss.find(s=>s.id===route.from),to=ss.find(s=>s.id===route.to);if(!from||!to||stock(from,route.resource)<demand(from,route.resource)*.9){route.active=false;return;}route.active=true;if(!active&&Math.random()<.18)spawnCaravan(route,ss);});
+    logistics.caravans=logistics.caravans.filter(c=>{const route=logistics.routes.find(r=>r.id===c.routeId),from=ss.find(s=>s.id===c.from),to=ss.find(s=>s.id===c.to);if(!route||!from||!to)return false;const a=pos(from),b=pos(to);c.progress=Math.min(1,c.progress+c.speed);c.x=a.x+(b.x-a.x)*c.progress;c.y=a.y+(b.y-a.y)*c.progress;if(c.progress>=1){const delivered=transfer(route,from,to);route.volume=clamp((route.volume||2)+(delivered>0?Math.random()*.6-.15:-.4),1,24);return false;}return true;});
   }
   function collectTaxes(){
-    let revenue=0;getSettlements().forEach(s=>{const tax=(s.feudal?.taxRate||.1);const people=alive().filter(n=>n.settlementId===s.id);const local=people.reduce((a,n)=>a+(n.wealth||0)*tax*.001,0);s.wealth=(s.wealth||0)+local;revenue+=money(local);});
+    let revenue=0;getSettlements().forEach(s=>{const tax=s.feudal?.taxRate||.1;const local=alive().filter(n=>n.settlementId===s.id).reduce((a,n)=>a+(n.wealth||0)*tax*.0015,0);if(local>0){s.wealth=(s.wealth||0)+local;s.treasury=(s.treasury||0)+local*.65;const lordId=s.feudal?.lordId;const lord=lordId?(state.getNpc?state.getNpc(lordId):state.npcs.find(n=>n.id===lordId)):null;if(lord)lord.wealth=(lord.wealth||0)+local*.35;}revenue+=money(local);});
     logistics.taxes.push(revenue);logistics.taxes=logistics.taxes.slice(-30);
   }
   function ensureHierarchy(ss){
-    logistics.counties=ss.map((s,i)=>({id:`county-${s.id}`,name:`${s.name} County`,capital:s.id,population:alive().filter(n=>n.settlementId===s.id).length,taxRate:s.feudal?.taxRate||.1}));
+    logistics.counties=ss.map(s=>({id:`county-${s.id}`,name:`${s.name} County`,capital:s.id,population:residents(s).length,taxRate:s.feudal?.taxRate||.1}));
     if(ss.length)logistics.duchies=[{id:'duchy-1',name:'Everglen Duchy',countyIds:logistics.counties.map(c=>c.id),stability:clamp(ss.reduce((a,s)=>a+(s.feudal?.legitimacy||50),0)/ss.length)}];
     logistics.regions=[{id:'region-1',name:'Everglen Crownlands',duchyIds:logistics.duchies.map(d=>d.id)}];
   }
