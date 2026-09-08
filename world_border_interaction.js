@@ -7,20 +7,9 @@
   let lastInfo = null;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const point = e => {
-    const r = canvas.getBoundingClientRect();
-    const sx = (e.clientX-r.left)*canvas.width/Math.max(1,r.width);
-    const sy = (e.clientY-r.top)*canvas.height/Math.max(1,r.height);
-    const cam = state.camera || {x:0,y:0,zoom:1};
-    return {x:cam.x+(sx-canvas.width/2)/Math.max(.01,cam.zoom), y:cam.y+(sy-canvas.height/2)/Math.max(.01,cam.zoom)};
-  };
-
-  function kingdom(id) { return (state.kingdoms || []).find(k => String(k.id) === String(id)); }
-  function ownerName(id) { return kingdom(id)?.name || `Kingdom ${id}`; }
-
-  function frontierFor(id) {
-    return (state.borderRecognition?.frontiers || []).find(f => String(f.kingdomId) === String(id)) || null;
-  }
+  const kingdom = id => (state.kingdoms || []).find(k => String(k.id) === String(id));
+  const ownerName = id => kingdom(id)?.name || `Kingdom ${id}`;
+  const frontierFor = id => (state.borderRecognition?.frontiers || []).find(f => String(f.kingdomId) === String(id)) || null;
 
   function nearestBorder(p) {
     let best = null, bd = Infinity;
@@ -75,18 +64,25 @@
     const actions=document.querySelector('.toolbar-actions');
     if(!actions || document.getElementById('toggleBorders')) return;
     const b=document.createElement('button');
-    b.id='toggleBorders'; b.textContent=state.showBorders===false?'◇ Borders':'◇ Borders';
+    b.id='toggleBorders'; b.textContent='◇ Borders';
     b.title='Show or hide recognized kingdom borders';
-    b.addEventListener('click',()=>{state.showBorders=state.showBorders===false; b.textContent=state.showBorders?'◇ Borders':'◇ Borders'; window.BORDER_RECOGNITION.draw();});
+    b.addEventListener('click',()=>{state.showBorders=state.showBorders===false; b.textContent='◇ Borders'; window.EVERGLEN_RENDER?.run?.({state});});
     actions.appendChild(b);
   }
 
-  canvas.addEventListener('click',e=>{
-    if(state.godMode) return;
-    const p=point(e);
-    inspect(p);
-  },false);
+  const registerInput = () => {
+    if (!window.EVERGLEN_INPUT?.register) return;
+    window.EVERGLEN_INPUT.register({
+      name:'border-inspection',
+      priority:20,
+      events:['click'],
+      hitTest:() => !state.godMode,
+      handle:inspect
+    });
+  };
 
   window.EVERGLEN_BORDER_INTERACTION={inspect,nearestBorder,get selected(){return lastInfo;}};
-  addToggle(); setTimeout(addToggle,0);
+  addToggle();
+  setTimeout(addToggle,0);
+  registerInput();
 })();
