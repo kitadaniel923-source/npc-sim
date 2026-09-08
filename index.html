@@ -10,7 +10,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand"><div class="brand-mark">✦</div><div><p class="eyebrow">Living world sandbox</p><h1>Everglen</h1><p class="subtitle">A tiny civilization that makes its own problems.</p></div></div>
-      <div class="controls"><button id="toggleSim" class="primary">⏸ Pause</button><label class="speed-control">Speed <input id="speed" type="range" min="1" max="12" value="4" /><strong id="speedLabel">4×</strong></label><button id="godMode">☄ God Mode</button><button data-event="festival">🎉 Festival</button><button data-event="storm">🌧 Storm</button><button data-event="plague">☣ Plague</button><button data-event="war">⚔ Border War</button><button data-event="meteor">☄ Meteor</button><button data-event="reset" class="danger">↺ Reset</button></div>
+      <div class="controls"><button id="toggleSim" class="primary">⏸ Pause</button><label class="speed-control">Speed <input id="speed" type="range" min="1" max="12" value="4" /><strong id="speedLabel">4×</strong></label><button id="godMode">☄ God Mode</button><button data-event="festival">🎉 Festival</button><button data-event="storm">🌧 Storm</button><button data-event="plague">☣ Plague</button><button data-event="war">⚔ Border War</button><button data-event="meteor">☄ Meteor</button><button id="openChronicle">📖 Chronicle</button><button id="economyButton">💰 Economy</button><button data-event="reset" class="danger">↺ Reset</button></div>
     </header>
     <section class="stats-bar"><div><span>Year</span><strong id="year">1</strong></div><div><span>Season</span><strong id="season">Spring</strong></div><div><span>Population</span><strong id="population">0</strong></div><div><span>Families</span><strong id="families">0</strong></div><div><span>Settlements</span><strong id="settlements">1</strong></div><div><span>Food</span><strong id="food">100%</strong></div><div><span>Stability</span><strong id="stability">82%</strong></div></section>
     <main class="game-layout">
@@ -95,11 +95,11 @@
   <script src="player_geopolitics.js"></script>
   <script src="living_culture_religion.js"></script>
   <script src="trade_exploration.js"></script>
-  <script src="regional_history.js"></script>
   <script src="world_chronicle_ui.js"></script>
   <script src="history_consequences.js"></script>
   <script src="world_ecology.js"></script>
   <script src="climate_cycles.js"></script>
   <script src="phase_5a_production_chains.js"></script>
+  <script src="phase5_economy_dashboard.js"></script>
 </body>
 </html>
