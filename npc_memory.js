@@ -4,7 +4,6 @@
 
   const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
   const alive = () => state.npcs.filter(n=>n.alive);
-  const YEAR_LENGTH = 30;
 
   const EMOTION = {
     joy:  { mood: 1.2, trust: 0.8, fear: -0.2, grievance: -0.5 },
@@ -40,18 +39,8 @@
     if(n.memoryIndex[key]) return n.memories.find(m=>m.key===key) || null;
     const m={
       id:`m_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      key,
-      year:state.year,
-      day:state.day,
-      type,
-      text,
-      importance:clamp(importance,0.1,5),
-      targetId,
-      emotion,
-      permanent:!!permanent,
-      lastRecall:state.tick,
-      recalls:0,
-      consequence:0
+      key,year:state.year,day:state.day,type,text,importance:clamp(importance,0.1,5),
+      targetId,emotion,permanent:!!permanent,lastRecall:state.tick,recalls:0,consequence:0
     };
     n.memories.unshift(m);
     n.memoryIndex[key]=m.id;
@@ -87,10 +76,10 @@
     n.mood=clamp((n.mood??65)+(e.mood||0)*power);
   }
 
-  function experience(n,text,type,importance,targetId,emotion='neutral',consequence=0,permanent=false){
+  function experience(n,text,type='event',importance=1,targetId=null,emotion='neutral',consequence=0,permanent=false){
     ensure(n);
     const m=remember(n,text,type,importance,targetId,emotion,permanent);
-    if(!m) return;
+    if(!m) return null;
     m.consequence=consequence;
     applyEmotion(n,emotion,Math.max(0.5,importance/2));
     if(targetId && consequence){
@@ -102,59 +91,45 @@
 
   function recall(n,targetId,type=null){
     ensure(n);
-    return n.memories
-      .filter(m=>(!targetId||m.targetId===targetId)&&(!type||m.type===type))
+    return n.memories.filter(m=>(!targetId||m.targetId===targetId)&&(!type||m.type===type))
       .sort((a,b)=>effectiveImportance(b)-effectiveImportance(a))[0] || null;
   }
 
-  function trust(n,targetId){ ensure(n); return clamp(50+(n.trustMap[targetId]||0)-((n.fearMap[targetId]||0)*0.35)-(n.grudgeMap[targetId]||0)*0.15,0,100); }
-  function fear(n,targetId){ ensure(n); return clamp(n.fearMap[targetId]||0,0,100); }
-  function grudge(n,targetId){ ensure(n); return clamp(n.grudgeMap[targetId]||0,0,100); }
+  function trust(n,targetId){ensure(n);return clamp(50+(n.trustMap[targetId]||0)-((n.fearMap[targetId]||0)*0.35)-(n.grudgeMap[targetId]||0)*0.15,0,100)}
+  function fear(n,targetId){ensure(n);return clamp(n.fearMap[targetId]||0,0,100)}
+  function grudge(n,targetId){ensure(n);return clamp(n.grudgeMap[targetId]||0,0,100)}
 
   function observe(n){
     ensure(n);
-    if(n.partnerId){
-      const p=state.npcs.find(x=>x.id===n.partnerId);
-      if(p?.alive) remember(n,`${p.name} is my partner.`,'relationship',2,p.id,'trust',true);
-    }
-    if(n.familyId){
-      const f=state.families.find(x=>x.id===n.familyId);
-      if(f) remember(n,`I belong to ${f.name}.`,'family',1.5,f.id,'pride',true);
-    }
+    if(n.partnerId){const p=state.npcs.find(x=>x.id===n.partnerId);if(p?.alive)remember(n,`${p.name} is my partner.`,'relationship',2,p.id,'trust',true)}
+    if(n.familyId){const f=state.families.find(x=>x.id===n.familyId);if(f)remember(n,`I belong to ${f.name}.`,'family',1.5,f.id,'pride',true)}
     if(state.war) experience(n,'I lived through a time of war.','war',1.8,null,'fear',0);
     if(state.plague) experience(n,'A plague threatened people around me.','disaster',1.8,null,'fear',0);
     if(n.grievance>45) remember(n,'I carry an unresolved grievance.','grievance',2,null,'anger',1.5);
     if(n.crimes>0) remember(n,`I have committed ${n.crimes} crime${n.crimes>1?'s':''}.`,'crime',1.8,null,'pride');
-    const enemies=(n.relations||[]).filter(r=>r.score<-50).slice(0,4);
-    enemies.forEach(r=>{
-      const x=state.npcs.find(p=>p.id===r.targetId);
-      if(x) experience(n,`${x.name} has earned my distrust.`,'enemy',2.2,x.id,'anger',3);
-    });
+    (n.relations||[]).filter(r=>r.score<-50).slice(0,4).forEach(r=>{const x=state.npcs.find(p=>p.id===r.targetId);if(x)experience(n,`${x.name} has earned my distrust.`,'enemy',2.2,x.id,'anger',3)});
   }
 
   function consequence(n,delta,reason,target){
     ensure(n);
-    n.grievance=clamp(n.grievance+(delta||0));
-    if(Math.abs(delta||0)<2) return;
-    const emotion=delta>0?'anger':'trust';
-    experience(n,reason,'consequence',Math.min(4,Math.abs(delta)/3),target?.id||null,emotion,Math.abs(delta)/5);
+    const amount=Number(delta)||0;
+    n.grievance=clamp(n.grievance+amount);
+    if(Math.abs(amount)<2) return;
+    const emotion=amount>0?'anger':'trust';
+    experience(n,reason,'consequence',Math.min(4,Math.abs(amount)/3),target?.id||null,emotion,Math.abs(amount)/5);
   }
 
   function sharedEvent(a,b,text,type,importance=1,positive=true){
     if(!a||!b) return;
-    const targetForA=b.id,targetForB=a.id;
-    const emotion=positive?'trust':'anger';
     const c=positive?-Math.min(12,importance*2):Math.min(12,importance*2);
-    experience(a,text,type,importance,targetForA,emotion,c);
-    experience(b,text,type,importance,targetForB,emotion,c);
+    experience(a,text,type,importance,b.id,positive?'trust':'anger',c);
+    experience(b,text,type,importance,a.id,positive?'trust':'anger',c);
   }
 
-  function processMemoryConsequences(n){
+  function applyMemoryBehavior(n){
     ensure(n);
     if(state.tick%12!==0) return;
-    const strong=n.memories
-      .filter(m=>effectiveImportance(m)>2.2)
-      .slice(0,8);
+    const strong=n.memories.filter(m=>effectiveImportance(m)>2.2).slice(0,8);
     strong.forEach(m=>{
       const target=m.targetId ? state.npcs.find(x=>x.id===m.targetId) : null;
       if(!target) return;
@@ -167,19 +142,20 @@
       m.lastRecall=state.tick;
       m.recalls=(m.recalls||0)+1;
     });
+
+    const avgEmotion=Object.values(n.emotionalMemory).reduce((s,v)=>s+v,0)/6;
+    if(avgEmotion<-20)n.mood=clamp(n.mood-0.25);
+    if((n.emotionalMemory.fear||0)>25)n.needs && (n.needs.safety=clamp((n.needs.safety||50)+.5));
+    if((n.emotionalMemory.anger||0)>25)n.needs && (n.needs.social=clamp((n.needs.social||50)+.35));
     n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));
-    if(n.memories.length>40) n.memories.length=40;
   }
 
   function step(){
     if(!state.running) return;
-    alive().forEach(n=>{observe(n);processMemoryConsequences(n);});
+    alive().forEach(n=>{observe(n);applyMemoryBehavior(n)});
   }
 
-  window.NPC_MEMORY={
-    ensure,remember,observe,consequence,experience,recall,trust,fear,grudge,sharedEvent,strengthen,step
-  };
-
-  if(state.registerSystem) state.registerSystem(step);
+  window.NPC_MEMORY={ensure,remember,observe,consequence,experience,recall,trust,fear,grudge,sharedEvent,strengthen,step};
+  if(state.registerSystem) state.registerSystem({name:'memory',step,priority:70});
   else setInterval(step,1200);
 })();
