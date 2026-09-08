@@ -9,120 +9,23 @@
   const dist=(a,b)=>Math.hypot((a.x||0)-(b.x||0),(a.y||0)-(b.y||0));
   const key=(a,b)=>[String(a),String(b)].sort().join(':');
   const price=(s,r)=>window.EVERGLEN_MARKETS?.price?.(s,r)??s.market?.prices?.[r]??10;
-  const basePrice=r=>window.NPC_RESOURCES?.RESOURCES?.[r]?.base??10;
   const resources=()=>window.NPC_RESOURCES?.catalog?Object.keys(window.NPC_RESOURCES.catalog()):['food','grain','wood','stone','iron','tools','weapons','armor','cloth','medicine','books','gold','silver'];
   const memory=window.NPC_MEMORY;
-  function ensureSettlement(s){
-    s.tradeNetwork=s.tradeNetwork||{};const t=s.tradeNetwork;
-    t.hubScore=t.hubScore??0;t.routePower=t.routePower??0;t.tradeIncome=t.tradeIncome??0;t.tradeDependence=t.tradeDependence??0;t.access=t.access??50;t.outstandingOrders=t.outstandingOrders||{};t.history=t.history||[];t.status=t.status||'local';
-    return t;
-  }
-  function ensureKingdom(k){
-    k.tradeNetwork=k.tradeNetwork||{};const t=k.tradeNetwork;
-    t.power=t.power??0;t.wealth=t.wealth??0;t.routeControl=t.routeControl??0;t.importDependence=t.importDependence??0;t.exportStrength=t.exportStrength??0;t.status=t.status||'regional-trader';t.partners=t.partners||[];t.history=t.history||[];
-    return t;
-  }
+  function ensureSettlement(s){s.tradeNetwork=s.tradeNetwork||{};const t=s.tradeNetwork;t.hubScore=t.hubScore??0;t.routePower=t.routePower??0;t.tradeIncome=t.tradeIncome??0;t.tradeDependence=t.tradeDependence??0;t.access=t.access??50;t.outstandingOrders=t.outstandingOrders||{};t.history=t.history||[];t.status=t.status||'local';return t;}
+  function ensureKingdom(k){k.tradeNetwork=k.tradeNetwork||{};const t=k.tradeNetwork;t.power=t.power??0;t.wealth=t.wealth??0;t.routeControl=t.routeControl??0;t.importDependence=t.importDependence??0;t.exportStrength=t.exportStrength??0;t.status=t.status||'regional-trader';t.partners=t.partners||[];t.history=t.history||[];return t;}
   function routeList(){return window.EverglenLogistics?.routes||window.EVERGLEN_LOGISTICS?.routes||[];}
-  function isHostile(a,b){
-    if(!a||!b||a.kingdomId===b.kingdomId)return false;
-    const rel=state.diplomacy?.relations?.[key(a.kingdomId,b.kingdomId)]?.score;
-    return state.war || (rel??0)<-60;
-  }
-  function routeCapacity(route,from,to){
-    const roads=(window.EverglenLogistics?.roads||[]).filter(r=>(r.from===from.id&&r.to===to.id)||(r.from===to.id&&r.to===from.id));
-    const roadCap=roads.reduce((a,r)=>a+(r.capacity||8)*(r.condition||70)/100,0);
-    const ports=((from.advanced?.projects?.ports||0)+(to.advanced?.projects?.ports||0));
-    return clamp((route.kind==='coastal'?18:8)+roadCap+ports*6,2,80);
-  }
-  function createMajorRoute(a,b,resource){
-    const routes=routeList();let r=routes.find(x=>key(x.from,x.to)===key(a.id,b.id)&&x.resource===resource);
-    if(!r&&window.EVERGLEN_LOGISTICS?.createRoute)r=window.EVERGLEN_LOGISTICS.createRoute(a,b,resource);
-    if(!r)return null;
-    r.origin='phase-5k';r.major=true;r.distance=dist(a,b);r.capacity=routeCapacity(r,a,b);r.value=r.value??0;r.risk=r.risk??10;r.lastEconomicYear=r.lastEconomicYear??state.year;
-    return r;
-  }
-  function pairScore(a,b){
-    const ga=a.economicGeography||{},gb=b.economicGeography||{};
-    const exportsA=ga.exports||{},exportsB=gb.exports||{};
-    let best=null;
-    for(const r of resources()){
-      const supply=(exportsA[r]||0)*(1+(a.trade?.hubScore||0)/100);
-      const demand=(gb.imports?.[r]||0)+Math.max(0,(b.market?.demand?.[r]||0))*0.04;
-      const gap=price(b,r)/Math.max(1,price(a,r));
-      const value=supply*(gap-1)*20+demand*5;
-      if(value>8&&(!best||value>best.value))best={resource:r,value};
-    }
-    if(!best)return null;
-    const security=isHostile(a,b)?-35:10;
-    return {value:best.value+security-dist(a,b)*.015,resource:best.resource};
-  }
-  function establishMajorRoutes(){
-    const list=ss();let created=0;
-    for(let i=0;i<list.length&&created<4;i++)for(let j=i+1;j<list.length&&created<4;j++){
-      const a=list[i],b=list[j];if(dist(a,b)>1100)continue;
-      const pair=pairScore(a,b);if(!pair||pair.value<12)continue;
-      const r=createMajorRoute(a,b,pair.resource);if(!r)continue;
-      r.value=Math.max(r.value,pair.value);r.risk=clamp((isHostile(a,b)?45:10)+dist(a,b)*.015);created++;
-    }
-  }
-  function updateRoutes(){
-    const routes=routeList();routes.forEach(r=>{
-      const a=ss().find(s=>s.id===r.from),b=ss().find(s=>s.id===r.to);if(!a||!b)return;
-      const hostile=isHostile(a,b);const cap=routeCapacity(r,a,b);r.capacity=cap;r.risk=clamp((hostile?55:8)+Math.max(0,dist(a,b)-500)*.015);
-      const supply=(a.economicGeography?.exports?.[r.resource]||0),need=(b.economicGeography?.imports?.[r.resource]||0),spread=price(b,r.resource)/Math.max(1,price(a,r.resource));
-      r.value=Math.max(0,(supply+need)*spread*.45);r.active=!hostile||Math.random()>Math.min(.75,r.risk/120);r.lastEconomicYear=state.year;
-      const traffic=r.active?Math.min(cap,Math.max(0,(r.volume||1)*Math.max(.5,spread))):0;r.traffic=traffic;
-      if(r.active){a.tradeNetwork.tradeIncome+=traffic*.012;b.tradeNetwork.tradeIncome+=traffic*.004;if(a.market){a.market.orderFlow=a.market.orderFlow||{};a.market.orderFlow[r.resource]=(a.market.orderFlow[r.resource]||0)+traffic*.12;}if(b.market){b.market.demand=b.market.demand||{};b.market.demand[r.resource]=(b.market.demand[r.resource]||0)+traffic*.14;}}
-      if(!r.active){a.tradeNetwork.tradeDependence=clamp(a.tradeNetwork.tradeDependence+.04);b.tradeNetwork.tradeDependence=clamp(b.tradeNetwork.tradeDependence+.08);}
-    });
-  }
-  function rankCenters(){
-    ss().forEach(s=>{
-      const t=ensureSettlement(s),routes=routeList().filter(r=>r.from===s.id||r.to===s.id),foreign=routes.filter(r=>{const other=ss().find(x=>x.id===(r.from===s.id?r.to:r.from));return other&&other.kingdomId!==s.kingdomId;}).length;
-      const merchants=alive().filter(n=>n.settlementId===s.id&&['merchant','trader','shopkeeper','peddler','sailor'].includes(n.roleId)).length;
-      const port=(s.advanced?.projects?.ports||0)>0;
-      t.hubScore=clamp((s.economicGeography?.marketAccess||50)*.3+routes.length*8+foreign*10+merchants*4+(s.wealth||0)*.018+(port?14:0));
-      t.routePower=clamp(routes.reduce((a,r)=>a+(r.major?1.5:1)*((r.value||0)/20),0));
-      t.status=t.hubScore>80?'major-trade-capital':t.hubScore>55?'regional-trade-hub':t.hubScore>30?'market-center':'local';
-      s.tradeNetwork=t;
-      s.tradePower=t.hubScore;
-    });
-  }
-  function kingdomPower(k){
-    const t=ensureKingdom(k),locals=ss().filter(s=>s.kingdomId===k.id),routes=routeList().filter(r=>locals.some(s=>s.id===r.from||s.id===r.to)),foreign=routes.filter(r=>{const a=ss().find(s=>s.id===r.from),b=ss().find(s=>s.id===r.to);return a&&b&&a.kingdomId!==b.kingdomId;});
-    const exports=locals.reduce((a,s)=>a+Object.values(s.economicGeography?.exports||{}).reduce((x,v)=>x+v,0),0);
-    const imports=locals.reduce((a,s)=>a+Object.values(s.economicGeography?.imports||{}).reduce((x,v)=>x+v,0),0);
-    const hub=locals.reduce((a,s)=>a+(s.tradeNetwork?.hubScore||0),0)/Math.max(1,locals.length);
-    t.exportStrength=clamp(exports*1.5);t.importDependence=clamp(imports*1.3);t.routeControl=clamp(foreign.reduce((a,r)=>a+(r.major?2:1),0)*10+routes.length*2);t.wealth=locals.reduce((a,s)=>a+(s.tradeNetwork?.tradeIncome||0),0)+hub*.4;
-    t.power=clamp(t.wealth*.8+t.routeControl*.45+t.exportStrength*.35+t.hub*0.1);
-    t.status=t.power>75?'great-trade-power':t.power>50?'major-trade-power':t.power>28?'regional-trader':'local-trader';
-    if(!k.economy)k.economy={};k.economy.tradePower=t.power;k.economy.tradeWealth=t.wealth;k.economy.tradeDependence=t.importDependence;
-    k.tradeNetwork=t;
-  }
-  function dependencyFeedback(){
-    ks().forEach(k=>{
-      const t=ensureKingdom(k);const locals=ss().filter(s=>s.kingdomId===k.id);const critical=locals.reduce((n,s)=>n+(s.tradeNetwork?.tradeDependence||0),0)/Math.max(1,locals.length);
-      t.importDependence=clamp((t.importDependence||0)*.92+critical*.08);
-      if(t.importDependence>70){k.tension=clamp((k.tension||0)+.035);k.legitimacy=clamp((k.legitimacy||55)-.012);}
-      if(t.routeControl>65&&k.strategy){k.strategy.opportunities=k.strategy.opportunities||{};k.strategy.opportunities.trade=t.power;}
-    });
-  }
-  function merchantFeedback(){
-    const merchants=alive().filter(n=>['merchant','trader','shopkeeper','peddler'].includes(n.roleId));
-    merchants.slice(0,140).forEach(n=>{const s=ss().find(x=>x.id===n.settlementId);if(!s)return;const t=ensureSettlement(s);const bonus=t.hubScore>60?.08:.02;n.tradeInfluence=clamp((n.tradeInfluence||0)+bonus);n.wealth+=(t.tradeIncome||0)*.02;if(n.tradeInfluence>75&&memory?.experience&&Math.random()<.02)memory.experience(n,'My trade network made me influential.','trade-power',2,s.id,'pride',-2,false);});
-  }
-  function history(){
-    ks().forEach(k=>{const t=ensureKingdom(k);t.history=t.history||[];const sig=`${t.status}:${Math.round(t.power)}`;const last=t.history[t.history.length-1];if(!last||last.signature!==sig)t.history.push({year:state.year,status:t.status,power:Number(t.power.toFixed(1)),routeControl:Number(t.routeControl.toFixed(1)),signature:sig});t.history=t.history.slice(-40);});
-  }
-  function step(){
-    if(!state.running)return;
-    ss().forEach(ensureSettlement);ks().forEach(ensureKingdom);
-    if(state.tick%48===0)establishMajorRoutes();
-    if(state.tick%24===0)updateRoutes();
-    if(state.tick%36===0)rankCenters();
-    if(state.tick%60===0)ks().forEach(kingdomPower);
-    if(state.tick%72===0){dependencyFeedback();merchantFeedback();history();}
-  }
+  function isHostile(a,b){if(!a||!b||a.kingdomId===b.kingdomId)return false;const rel=state.diplomacy?.relations?.[key(a.kingdomId,b.kingdomId)]?.score;return state.war||(rel??0)<-60;}
+  function routeCapacity(route,from,to){const roads=(window.EverglenLogistics?.roads||[]).filter(r=>(r.from===from.id&&r.to===to.id)||(r.from===to.id&&r.to===from.id));const roadCap=roads.reduce((a,r)=>a+(r.capacity||8)*(r.condition||70)/100,0);const ports=((from.advanced?.projects?.ports||0)+(to.advanced?.projects?.ports||0));return clamp((route.kind==='coastal'?18:8)+roadCap+ports*6,2,80);}
+  function createMajorRoute(a,b,resource){const routes=routeList();let r=routes.find(x=>key(x.from,x.to)===key(a.id,b.id)&&x.resource===resource);if(!r&&window.EVERGLEN_LOGISTICS?.createRoute)r=window.EVERGLEN_LOGISTICS.createRoute(a,b,resource);if(!r)return null;r.origin='phase-5k';r.major=true;r.distance=dist(a,b);r.capacity=routeCapacity(r,a,b);r.value=r.value??0;r.risk=r.risk??10;r.lastEconomicYear=r.lastEconomicYear??state.year;return r;}
+  function pairScore(a,b){const ga=a.economicGeography||{},gb=b.economicGeography||{},exportsA=ga.exports||{};let best=null;for(const r of resources()){const supply=(exportsA[r]||0)*(1+(a.trade?.hubScore||0)/100);const demand=(gb.imports?.[r]||0)+Math.max(0,(b.market?.demand?.[r]||0))*.04;const gap=price(b,r)/Math.max(1,price(a,r));const value=supply*(gap-1)*20+demand*5;if(value>8&&(!best||value>best.value))best={resource:r,value};}if(!best)return null;const security=isHostile(a,b)?-35:10;return{value:best.value+security-dist(a,b)*.015,resource:best.resource};}
+  function establishMajorRoutes(){const list=ss();let created=0;for(let i=0;i<list.length&&created<4;i++)for(let j=i+1;j<list.length&&created<4;j++){const a=list[i],b=list[j];if(dist(a,b)>1100)continue;const pair=pairScore(a,b);if(!pair||pair.value<12)continue;const r=createMajorRoute(a,b,pair.resource);if(!r)continue;r.value=Math.max(r.value,pair.value);r.risk=clamp((isHostile(a,b)?45:10)+dist(a,b)*.015);created++;}}
+  function updateRoutes(){routeList().forEach(r=>{const a=ss().find(s=>s.id===r.from),b=ss().find(s=>s.id===r.to);if(!a||!b)return;const ta=ensureSettlement(a),tb=ensureSettlement(b),hostile=isHostile(a,b);r.capacity=routeCapacity(r,a,b);r.risk=clamp((hostile?55:8)+Math.max(0,dist(a,b)-500)*.015);const supply=(a.economicGeography?.exports?.[r.resource]||0),need=(b.economicGeography?.imports?.[r.resource]||0),spread=price(b,r.resource)/Math.max(1,price(a,r.resource));r.value=Math.max(0,(supply+need)*spread*.45);r.active=!hostile||Math.random()>Math.min(.75,r.risk/120);r.lastEconomicYear=state.year;const traffic=r.active?Math.min(r.capacity,Math.max(0,(r.volume||1)*Math.max(.5,spread))):0;r.traffic=traffic;if(r.active){ta.tradeIncome+=traffic*.012;tb.tradeIncome+=traffic*.004;}else{ta.tradeDependence=clamp(ta.tradeDependence+.04);tb.tradeDependence=clamp(tb.tradeDependence+.08);}});}
+  function rankCenters(){ss().forEach(s=>{const t=ensureSettlement(s),routes=routeList().filter(r=>r.from===s.id||r.to===s.id),foreign=routes.filter(r=>{const other=ss().find(x=>x.id===(r.from===s.id?r.to:r.from));return other&&other.kingdomId!==s.kingdomId;}).length,merchants=alive().filter(n=>n.settlementId===s.id&&['merchant','trader','shopkeeper','peddler','sailor'].includes(n.roleId)).length,port=(s.advanced?.projects?.ports||0)>0;t.hubScore=clamp((s.economicGeography?.marketAccess||50)*.3+routes.length*8+foreign*10+merchants*4+(s.wealth||0)*.018+(port?14:0));t.routePower=clamp(routes.reduce((a,r)=>a+(r.major?1.5:1)*((r.value||0)/20),0));t.status=t.hubScore>80?'major-trade-capital':t.hubScore>55?'regional-trade-hub':t.hubScore>30?'market-center':'local';s.tradeNetwork=t;s.tradePower=t.hubScore;});}
+  function kingdomPower(k){const t=ensureKingdom(k),locals=ss().filter(s=>s.kingdomId===k.id),routes=routeList().filter(r=>locals.some(s=>s.id===r.from||s.id===r.to)),foreign=routes.filter(r=>{const a=ss().find(s=>s.id===r.from),b=ss().find(s=>s.id===r.to);return a&&b&&a.kingdomId!==b.kingdomId;});const exports=locals.reduce((a,s)=>a+Object.values(s.economicGeography?.exports||{}).reduce((x,v)=>x+v,0),0),imports=locals.reduce((a,s)=>a+Object.values(s.economicGeography?.imports||{}).reduce((x,v)=>x+v,0),0),hub=locals.reduce((a,s)=>a+(s.tradeNetwork?.hubScore||0),0)/Math.max(1,locals.length);t.exportStrength=clamp(exports*1.5);t.importDependence=clamp(imports*1.3);t.routeControl=clamp(foreign.reduce((a,r)=>a+(r.major?2:1),0)*10+routes.length*2);t.wealth=locals.reduce((a,s)=>a+(s.tradeNetwork?.tradeIncome||0),0)+hub*.4;t.power=clamp(t.wealth*.8+t.routeControl*.45+t.exportStrength*.35+hub*.1);t.status=t.power>75?'great-trade-power':t.power>50?'major-trade-power':t.power>28?'regional-trader':'local-trader';if(!k.economy)k.economy={};k.economy.tradePower=t.power;k.economy.tradeWealth=t.wealth;k.economy.tradeDependence=t.importDependence;k.tradeNetwork=t;}
+  function dependencyFeedback(){ks().forEach(k=>{const t=ensureKingdom(k),locals=ss().filter(s=>s.kingdomId===k.id),critical=locals.reduce((n,s)=>n+(s.tradeNetwork?.tradeDependence||0),0)/Math.max(1,locals.length);t.importDependence=clamp((t.importDependence||0)*.92+critical*.08);if(t.importDependence>70){k.tension=clamp((k.tension||0)+.035);k.legitimacy=clamp((k.legitimacy||55)-.012);}if(t.routeControl>65&&k.strategy){k.strategy.opportunities=k.strategy.opportunities||{};k.strategy.opportunities.trade=t.power;}});}
+  function merchantFeedback(){alive().filter(n=>['merchant','trader','shopkeeper','peddler'].includes(n.roleId)).slice(0,140).forEach(n=>{const s=ss().find(x=>x.id===n.settlementId);if(!s)return;const t=ensureSettlement(s),bonus=t.hubScore>60?.08:.02;n.tradeInfluence=clamp((n.tradeInfluence||0)+bonus);n.wealth+=(t.tradeIncome||0)*.02;if(n.tradeInfluence>75&&memory?.experience&&Math.random()<.02)memory.experience(n,'My trade network made me influential.','trade-power',2,s.id,'pride',-2,false);});}
+  function history(){ks().forEach(k=>{const t=ensureKingdom(k);t.history=t.history||[];const sig=`${t.status}:${Math.round(t.power)}`,last=t.history[t.history.length-1];if(!last||last.signature!==sig)t.history.push({year:state.year,status:t.status,power:Number(t.power.toFixed(1)),routeControl:Number(t.routeControl.toFixed(1)),signature:sig});t.history=t.history.slice(-40);});}
+  function step(){if(!state.running)return;ss().forEach(ensureSettlement);ks().forEach(ensureKingdom);if(state.tick%48===0)establishMajorRoutes();if(state.tick%24===0)updateRoutes();if(state.tick%36===0)rankCenters();if(state.tick%60===0)ks().forEach(kingdomPower);if(state.tick%72===0){dependencyFeedback();merchantFeedback();history();}}
   window.EVERGLEN_TRADE_NETWORKS={step,establishMajorRoutes,updateRoutes,rankCenters,kingdomPower};
   if(state.registerSystem)state.registerSystem({name:'trade-networks',step,priority:62});
 })();
