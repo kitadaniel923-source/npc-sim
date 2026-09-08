@@ -6,7 +6,7 @@
   const alive = () => (state.npcs || []).filter(n => n.alive);
   const personality = window.NPC_PERSONALITY;
   const memory = window.NPC_MEMORY;
-  const familySystem = window.FAMILY_SYSTEM;
+  const familySystem = window.NPC_FAMILIES;
   const life = window.EVERGLEN_LIFE_ENGINE;
 
   function log(text) {
@@ -21,6 +21,7 @@
     n.generation = n.generation || (n.parentIds?.length ? 2 : 1);
     n.childrenIds = Array.isArray(n.childrenIds) ? n.childrenIds : [];
     n.parentIds = Array.isArray(n.parentIds) ? n.parentIds : [];
+    n.parents = Array.isArray(n.parents) ? n.parents : n.parentIds.slice();
     n.spouseId = n.spouseId || n.partnerId || null;
     n.partnerId = n.partnerId || n.spouseId || null;
     n.mortality = n.mortality ?? 0;
@@ -81,9 +82,9 @@
     if (!a.childrenIds.includes(child.id)) a.childrenIds.push(child.id);
     if (!b.childrenIds.includes(child.id)) b.childrenIds.push(child.id);
 
-    if (familySystem?.onBirth) familySystem.onBirth(state, child, [a,b]);
-    if (life?.inheritTraits) life.inheritTraits(child, a, b);
-    if (personality?.ensure) personality.ensure(child);
+    familySystem?.onBirth?.(child, [a,b]);
+    life?.inheritTraits?.(child, a, b);
+    personality?.ensure?.(child);
 
     if (memory) {
       memory.experience(a, `${child.name} was born to our family.`, 'family', 3.2, child.id, 'joy', -3, true);
@@ -139,8 +140,8 @@
       if (p) { p.partnerId = null; p.spouseId = null; p.grief = clamp((p.grief || 0) + 18); memory?.experience(p, `${n.name} died.`, 'death', 4.5, n.id, 'grief', 6, true); }
     }
     memory?.experience(n, `I died at age ${Math.floor(n.age)}.`, 'death', 5, null, 'grief', 0, true);
-    if (familySystem?.inherit) familySystem.inherit(state, n);
-    if (life?.inheritOnDeath) life.inheritOnDeath(n);
+    familySystem?.inherit?.(n);
+    life?.inheritOnDeath?.(n);
     const family = state.families?.find(f => f.id === n.familyId);
     if (family) family.deadMembers = (family.deadMembers || 0) + 1;
     if (state.selected === n.id) state.selected = null;
