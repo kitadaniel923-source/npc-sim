@@ -37,20 +37,57 @@
   };
 
   const OUTPUT = {
-    farmer:{food:3.0,grain:1.0}, rancher:{livestock:.12,leather:.18,wool:.12}, fisher:{fish:2.2}, forager:{food:1.2,herbs:.35}, hunter:{food:1.4,leather:.35},
-    miner:{iron:2,copper:.55,stone:1.2,coal:.25,silver:.08,gold:.02,gems:.015}, woodcutter:{wood:3.0}, mason:{stone:2.2}, builder:{tools:.08},
-    blacksmith:{weapons:.55,tools:.7,iron:-2,coal:-.6}, armorer:{armor:.45,iron:-2.2,leather:-.25,coal:-.5}, carpenter:{tools:.45,boats:.04,wood:-2},
-    weaver:{cloth:1.2,wool:-.65}, potter:{stone:.2,clay:1.5}, baker:{food:2.2,grain:-1.1}, cook:{food:1.6,grain:-.35,meat:-.15},
-    brewer:{grain:-.5,food:.25}, herbalist:{herbs:1.1,medicine:.12}, healer:{medicine:.7,herbs:-.2}, doctor:{medicine:1.0,herbs:-.35},
-    merchant:{gold:.5}, trader:{gold:.85}, peddler:{gold:.3}, shopkeeper:{gold:.35}, farrier:{horses:.03,tools:.15,iron:-.3},
-    sailor:{fish:.45,boats:.01,gold:.25}, shipwright:{boats:.08,wood:-3.2,tools:-.3,iron:-.4}, scholar:{paper:.2,books:.08}, teacher:{education:.08,paper:-.08},
-    scribe:{paper:-.2,books:.08}, librarian:{books:.05}, artist:{cloth:.05,gold:.15}, musician:{gold:.18}, courier:{horses:.02,paper:.03},
-    engineer:{tools:-.25,stone:.3,wood:.25}, architect:{paper:-.08,stone:.12}, explorer:{paper:.05,gold:.08}, beastmaster:{livestock:.05,horses:.03},
-    furniture_maker:{wood:-1.8,tools:-.2,gold:.25}, alchemist:{medicine:.45,reagents:-1.0,herbs:-.25}, enchanter:{armor:.08,gems:-.08,reagents:-1.1},
-    mage:{reagents:-.35,gems:-.03}, wizard:{reagents:-.55,gems:-.06}, druid:{herbs:.65,medicine:.25,food:.35}, cleric:{medicine:.3,food:.1},
-    sailor:{fish:.45,gold:.2}, leatherworker:{leather:-1,armor:.12,cloth:.12,gold:.1}, miner:{iron:2,copper:.55,stone:1.2,coal:.25,silver:.08,gold:.02,gems:.015},
-    cavalry:{horses:-.02,food:-.3,armor:-.05,weapons:-.04}, soldier:{food:-.22,weapons:-.08,armor:-.05}, knight:{food:-.3,weapons:-.1,armor:-.08}, archer:{food:-.22,weapons:-.06}, spearman:{food:-.22,weapons:-.07}, militia:{food:-.15,weapons:-.04},
+    farmer:{food:3.0,grain:1.0},
+    rancher:{livestock:.12,leather:.18,wool:.12},
+    fisher:{fish:2.2},
+    forager:{food:1.2,herbs:.35},
+    hunter:{food:1.4,leather:.35},
+    miner:{iron:2,copper:.55,stone:1.2,coal:.25,silver:.08,gold:.02,gems:.015},
+    woodcutter:{wood:3.0},
+    mason:{stone:2.2},
+    builder:{tools:.08},
     blacksmith:{weapons:.55,tools:.7,iron:-2,coal:-.6},
+    armorer:{armor:.45,iron:-2.2,leather:-.25,coal:-.5},
+    carpenter:{tools:.45,boats:.04,wood:-2},
+    weaver:{cloth:1.2,wool:-.65},
+    potter:{stone:.2,clay:1.5},
+    baker:{food:2.2,grain:-1.1},
+    cook:{food:1.6,grain:-.35,livestock:-.015},
+    brewer:{grain:-.5,food:.25},
+    herbalist:{herbs:1.1,medicine:.12},
+    healer:{medicine:.7,herbs:-.2},
+    doctor:{medicine:1.0,herbs:-.35},
+    merchant:{gold:.5},
+    trader:{gold:.85},
+    peddler:{gold:.3},
+    shopkeeper:{gold:.35},
+    farrier:{horses:.03,tools:.15,iron:-.3},
+    sailor:{fish:.45,boats:.01,gold:.2},
+    shipwright:{boats:.08,wood:-3.2,tools:-.3,iron:-.4},
+    scholar:{paper:.2,books:.08},
+    teacher:{paper:-.08},
+    scribe:{paper:-.2,books:.08},
+    librarian:{books:.05},
+    artist:{cloth:.05,gold:.15},
+    musician:{gold:.18},
+    courier:{horses:.02,paper:.03},
+    engineer:{tools:-.25,stone:.3,wood:.25},
+    architect:{paper:-.08,stone:.12},
+    explorer:{paper:.05,gold:.08},
+    beastmaster:{livestock:.05,horses:.03},
+    furniture_maker:{wood:-1.8,tools:-.2,gold:.25},
+    alchemist:{medicine:.45,reagents:-1.0,herbs:-.25},
+    enchanter:{armor:.08,gems:-.08,reagents:-1.1},
+    mage:{reagents:-.35,gems:-.03},
+    wizard:{reagents:-.55,gems:-.06},
+    druid:{herbs:.65,medicine:.25,food:.35},
+    cleric:{medicine:.3,food:.1},
+    cavalry:{horses:-.02,food:-.3,armor:-.05,weapons:-.04},
+    soldier:{food:-.22,weapons:-.08,armor:-.05},
+    knight:{food:-.3,weapons:-.1,armor:-.08},
+    archer:{food:-.22,weapons:-.06},
+    spearman:{food:-.22,weapons:-.07},
+    militia:{food:-.15,weapons:-.04}
   };
 
   function ensureSettlement(s){
@@ -66,6 +103,7 @@
   }
 
   function catalog(){return RESOURCES;}
+
   function price(s,id){
     const resource=RESOURCES[id];
     if(!resource)return 10;
@@ -81,12 +119,11 @@
     const recipe=OUTPUT[n.roleId];
     if(!recipe)return;
     Object.entries(recipe).forEach(([id,value])=>{
-      if(!RESOURCES[id] || typeof value!=='number')return;
+      if(!RESOURCES[id]||typeof value!=='number'||id==='education')return;
       const amount=value*state.speed*outputScale;
       if(amount>=0)s.resources[id]=(s.resources[id]||0)+amount;
-      else {
-        const need=Math.abs(amount);
-        const used=Math.min(s.resources[id]||0,need);
+      else{
+        const need=Math.abs(amount),used=Math.min(s.resources[id]||0,need);
         s.resources[id]=Math.max(0,(s.resources[id]||0)-used);
       }
     });
@@ -96,6 +133,10 @@
     if(!state.running)return;
     state.settlements?.forEach(ensureSettlement);
     state.npcs?.filter(n=>n.alive).forEach(ensureNpc);
+    state.npcs?.filter(n=>n.alive).forEach(n=>{
+      const s=state.settlements?.find(x=>x.id===n.settlementId);
+      if(s)applyProduction(n,s,.012);
+    });
   }
 
   window.NPC_RESOURCES={RESOURCES,OUTPUT,ensureNpc,ensureSettlement,catalog,price,applyProduction,step};
