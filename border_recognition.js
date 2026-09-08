@@ -18,6 +18,11 @@
   function territoryOwner(x,y) {
     const t = state.territory;
     if (!t) return null;
+    const simTile = window.SIM_API?.tileId?.(x,y);
+    if (ArrayBuffer.isView(t) && Number.isInteger(Number(simTile))) {
+      const ki = Number(t[Number(simTile)]);
+      if (ki >= 0) return ownerKey(state.territoryOwner?.[ki] ?? state.kingdoms?.[ki]?.id);
+    }
     const k = key(x,y);
     if (Array.isArray(t)) {
       const hit = t.find(c => {
@@ -78,8 +83,8 @@
       for (const [dx,dy] of [[STEP,0],[0,STEP]]) {
         const n = byCell.get(key(c.x+dx,c.y+dy));
         if (!n || !n.owner || n.owner === c.owner) continue;
-        borders.push({x1:c.x,y1:c.y,x2:n.x,y2:n.y,a:c.owner,b:n.owner,
-          contested: !!(state.war && ((kingdomInfo(c.owner)?.atWar) || (kingdomInfo(n.owner)?.atWar)))});
+        const contested = !!(window.SIM_API?.isKingdomAtWar?.(c.owner,n.owner) || ((state.war || false) && ((kingdomInfo(c.owner)?.atWar) || (kingdomInfo(n.owner)?.atWar))));
+        borders.push({x1:c.x,y1:c.y,x2:n.x,y2:n.y,a:c.owner,b:n.owner,contested});
       }
     }
     return {cells,borders,updatedTick:state.tick,updatedYear:state.year};
