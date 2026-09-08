@@ -52,7 +52,19 @@ Territory interaction state is also ordinary world data and is persisted automat
 - `state.territoryClaims` → tile-id keyed player claim overrides. These are inputs to `recomputeTerritory()`, not direct ownership writes. Removing a claim deletes the override and recomputes organic ownership.
 - `state.borderWars` → targeted kingdom-pair wars created by contextual border actions. These are distinct from the global `state.war` toggle.
 
-This phase records the intervention and the persistent world-state change. Deeper propagation into culture, politics, rumors, and long-term historical systems is intentionally a later feature and is not part of persistence architecture.
+### Civilization and diplomacy state
+
+Phase 2 civilization data is additive to the same v3 snapshot and requires no separate serialization format. Current persistent structures include settlement education/identity data, kingdom civilization identity, and inter-kingdom diplomacy:
+
+- `settlement.society.education` → schools, teachers, literacy, knowledge, prestige and history.
+- `settlement.society.identity` → dominant culture/belief, diversity, tolerance and identity history.
+- `kingdom.society.identity` → civilization culture, belief, law, literacy, education, knowledge, tolerance, prosperity, historical era and evolution history.
+- `state.diplomacy` → bilateral relations, treaties and diplomatic history.
+- `kingdom.diplomacy` → kingdom-local mirrors of bilateral relations, treaties and history.
+
+These fields remain ordinary data and are automatically included by the recursive serializer. They can therefore survive save/load alongside populations, settlements, wars, institutions and player interventions.
+
+This phase records civilization evolution and diplomacy as persistent world history. The simulation still keeps runtime system registrations and DOM infrastructure out of the save.
 
 ## Migration policy
 
