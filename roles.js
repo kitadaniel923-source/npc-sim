@@ -3,7 +3,7 @@ const ROLE_LIBRARY = {
   professions: [
     ['farmer','Farmer','grows food',1],['rancher','Rancher','raises livestock',1],['fisher','Fisher','catches fish',1],['forager','Forager','gathers wild food',1],
     ['miner','Miner','extracts ore',2],['woodcutter','Woodcutter','harvests timber',1],['builder','Builder','constructs buildings',2],['mason','Mason','builds stone structures',2],
-    ['blacksmith','Blacksmith','makes tools and weapons',3],['armorer','Armorer','makes armor',3],['carpenter','Carpenter','makes furniture and bows',2],['weaver','Weaver','makes cloth',2],
+    ['blacksmith','Blacksmith','makes tools, weapons and armor',3],['carpenter','Carpenter','makes furniture and bows',2],['weaver','Weaver','makes cloth',2],
     ['potter','Potter','makes pottery',1],['brewer','Brewer','makes drinks',1],['baker','Baker','makes bread',1],['cook','Cook','prepares food',1],['herbalist','Herbalist','gathers medicinal plants',2],
     ['healer','Healer','treats the sick',3],['doctor','Doctor','provides advanced medicine',4],['merchant','Merchant','trades goods',3],['trader','Trader','travels trade routes',3],['peddler','Peddler','sells small goods',1],
     ['innkeeper','Innkeeper','runs an inn',2],['shopkeeper','Shopkeeper','runs a shop',2],['farrier','Farrier','shoes horses',2],['sailor','Sailor','works ships',2],['shipwright','Shipwright','builds ships',4],
@@ -84,7 +84,7 @@ window.roleDescription = id => window.ROLE_BY_ID[id] || window.ROLE_BY_ID.citize
       const r=window.roleDescription(n.roleId);
       if(!r)return;
       if(['farmer','rancher','forager'].includes(r.id))n.job='farmer';
-      else if(['blacksmith','armorer','carpenter','mason','builder','engineer','shipwright'].includes(r.id))n.job='builder';
+      else if(['blacksmith','carpenter','mason','builder','engineer','shipwright'].includes(r.id))n.job='builder';
       else if(['merchant','trader','peddler','shopkeeper','innkeeper'].includes(r.id))n.job='merchant';
       else if(['healer','doctor','herbalist'].includes(r.id))n.job='healer';
       else if(['soldier','archer','spearman','cavalry','knight','paladin','ranger','captain','general','marshal','bodyguard'].includes(r.id))n.job='guard';
