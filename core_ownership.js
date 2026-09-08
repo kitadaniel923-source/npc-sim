@@ -9,7 +9,7 @@
 
     const makeProxy = (value) => {
       if (!value || typeof value.forEach !== 'function') return value;
-      const proxy = new Proxy(value, {
+      return new Proxy(value, {
         get(target, prop, receiver) {
           if (prop !== 'forEach') return Reflect.get(target, prop, receiver);
           const nativeForEach = target.forEach;
@@ -21,18 +21,18 @@
           };
         }
       });
-      wrapped = proxy;
-      return proxy;
     };
 
     Object.defineProperty(state, key, {
       configurable: true,
       enumerable: true,
-      get() { return raw; },
-      set(value) { raw = value; wrapped = makeProxy(value); }
+      get() { return wrapped; },
+      set(value) {
+        raw = value;
+        wrapped = makeProxy(value);
+      }
     });
 
-    raw = raw;
     wrapped = makeProxy(raw);
   };
 
