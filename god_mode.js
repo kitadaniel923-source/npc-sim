@@ -40,7 +40,7 @@
     const feed = document.getElementById('eventFeed');
     if (feed) feed.innerHTML = state.feed.map(x => `<li>${x}</li>`).join('');
   };
-  const render = () => { try { window.SIM_RENDER?.(); } catch (_) {} try { window.EVERGLEN_2D_ART?.draw?.(); } catch (_) {} };
+  const render = () => { try { window.SIM_RENDER?.(); } catch (_) {} };
   const worldPoint = e => {
     const r = canvas.getBoundingClientRect();
     const sx = (e.clientX - r.left) * canvas.width / Math.max(1, r.width);
