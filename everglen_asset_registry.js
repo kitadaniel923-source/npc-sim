@@ -36,7 +36,9 @@
   window.EVERGLEN_ASSET_REGISTRY=registry;
 
   const bytesFromB64=b64=>{
-    const raw=atob(String(b64).replace(/\s+/g,''));
+    let value=String(b64).trim().replace(/^data:[^,]+,/,'').replace(/[^A-Za-z0-9+/_=-]/g,'').replace(/-/g,'+').replace(/_/g,'/');
+    value=value.padEnd(value.length+((4-value.length%4)%4),'=');
+    const raw=atob(value);
     const out=new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
     return out;
