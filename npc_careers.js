@@ -46,6 +46,7 @@
     };
     return CAREERS.map(c => {
       let s = c.fit(p);
+      if (window.EVERGLEN_RACES?.careerModifier) s += window.EVERGLEN_RACES.careerModifier(n,c);
       if (has(n,'greedy')) s += c.group==='wealth' ? 22 : c.group==='rogue' ? 10 : 0;
       if (has(n,'kind')) s += c.group==='care' ? 20 : c.group==='rogue' ? -18 : 0;
       if (has(n,'brave')) s += c.group==='military' ? 18 : c.group==='adventure' ? 10 : 0;
