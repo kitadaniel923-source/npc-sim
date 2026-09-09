@@ -9,7 +9,9 @@
   const viewport = document.getElementById('worldViewport');
   if (!base || !viewport) return;
 
-  base.style.opacity = '0';
+  // Keep the proven simulation canvas visible until imported assets are genuinely
+  // ready. The Pixel Crawler renderer hides it only after its atlas is available.
+  base.style.opacity = '1';
   base.style.pointerEvents = 'auto';
 
   const old = document.getElementById('world2dCanvas');
