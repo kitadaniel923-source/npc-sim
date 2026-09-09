@@ -5,7 +5,6 @@
   if(!state)return;
   const alive=()=>state.npcs.filter(n=>n.alive);
   const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
-  const raceLib=()=>window.EVERGLEN_RACES?.RACE_LIBRARY||{};
   const family=n=>state.families.find(f=>f.id===n.familyId)||null;
   const relation=(a,b)=>window.NPC_RELATIONSHIPS?.get(a,b,false);
   const trust=(a,b,r)=>window.NPC_RELATIONSHIPS?.trustValue(a,b.id,r)??50;
@@ -38,7 +37,6 @@
     if(!fa){a.familyId=fb.id;return fb;}
     if(!fb){b.familyId=fa.id;return fa;}
     if(fa.id===fb.id)return fa;
-    // Keep the larger/prestigious household as the surviving lineage and merge the smaller one.
     const keep=(fa.prestige||0)+(fa.wealth||0)>=(fb.prestige||0)+(fb.wealth||0)?fa:fb;
     const merge=keep===fa?fb:fa;
     merge.members=(merge.members||[]).filter(id=>id!==a.id&&id!==b.id);
@@ -58,7 +56,8 @@
     a.marriedYear=state.year;b.marriedYear=state.year;
     a.maritalStatus=b.maritalStatus='married';
     const f=joinFamilies(a,b);
-    a.householdId=f?.id||a.familyId||null;b.householdId=a.householdId;
+    a.householdId=null;b.householdId=null;
+    a.householdFamilyId=f?.id||a.familyId||null;b.householdFamilyId=a.householdFamilyId;
     a.mood=clamp((a.mood||65)+7);b.mood=clamp((b.mood||65)+7);
     a.lastAction=`Married ${b.name}`;b.lastAction=`Married ${a.name}`;
     window.NPC_RELATIONSHIPS?.interact(a,b,'help',2);
@@ -78,7 +77,8 @@
     child.settlementId=a?.settlementId||b?.settlementId||child.settlementId;
     child.home=a?.home||b?.home||child.home;
     child.familyId=a?.familyId||b?.familyId||child.familyId;
-    child.householdId=child.familyId;
+    child.householdFamilyId=child.familyId;
+    if(child._familyInheritanceApplied)return;
     child.wealth=0;
     child.inheritedWealth=0;
     if(a&&b){
@@ -88,12 +88,18 @@
       child.honor=clamp(((a.honor||50)+(b.honor||50))/2);
       child.ambition=clamp(((a.ambition||50)+(b.ambition||50))/2);
       child.loyalty=clamp(((a.loyalty||50)+(b.loyalty||50))/2);
+      if(window.NPC_PERSONALITY?.ensure){
+        const p=window.NPC_PERSONALITY.ensure(child);
+        p.base.ambition=child.ambition;p.base.loyalty=child.loyalty;
+        window.NPC_PERSONALITY.applyTraits(child);
+      }
     }
     const r1=a?.raceId,r2=b?.raceId;
     child.raceId=r1&&r2?(r1===r2?r1:(Math.random()<.5?r1:r2)):(r1||r2||child.raceId);
     child.heritage=Array.from(new Set([...(a?.heritage||[r1]).filter(Boolean),...(b?.heritage||[r2]).filter(Boolean)])).slice(0,4);
     child.mixedHeritage=child.heritage.length>1;
     child.inheritanceReady=true;
+    child._familyInheritanceApplied=true;
   }
 
   function maintainFamilies(){
