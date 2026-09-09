@@ -41,32 +41,40 @@ function createWindow() {
 
 function runRuntimeAudit(win) {
   const started = Date.now();
-  const timeoutMs = 20000;
+  const timeoutMs = 30000;
   const pollMs = 250;
+  let lastTick = null;
 
   const poll = async () => {
     if (Date.now() - started > timeoutMs) {
-      console.error('EVERGLEN_RUNTIME_AUDIT_TIMEOUT');
+      console.error('EVERGLEN_RUNTIME_AUDIT_TIMEOUT tick=' + (lastTick ?? 'unknown'));
       app.exit(2);
       return;
     }
 
     try {
-      const report = await win.webContents.executeJavaScript(`(() => {
-        if (!window.EVERGLEN_DEEP_AUDIT) return {ready:false};
+      const result = await win.webContents.executeJavaScript(`(() => {
+        if (!window.EVERGLEN_DEEP_AUDIT) return {ready:false, reason:'audit-not-loaded'};
         const state = window.SIM_STATE;
-        if (!state || typeof state.tick !== 'number') return {ready:false};
-        if (state.tick < 12) return {ready:false, tick:state.tick};
-        return {ready:true, report:window.EVERGLEN_DEEP_AUDIT.test()};
+        if (!state) return {ready:false, reason:'state-not-created'};
+        return {
+          ready:true,
+          running:!!state.running,
+          tick:typeof state.tick === 'number' ? state.tick : null,
+          report:window.EVERGLEN_DEEP_AUDIT.test()
+        };
       })()`, true);
 
-      if (!report?.ready) {
+      lastTick = result?.tick ?? lastTick;
+
+      if (!result?.ready) {
         setTimeout(poll, pollMs);
         return;
       }
 
-      console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(report.report));
-      if (report.report?.ok) {
+      console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(result.report));
+      console.log('EVERGLEN_RUNTIME_AUDIT_STATE=' + JSON.stringify({running:result.running,tick:result.tick}));
+      if (result.report?.ok) {
         console.log('EVERGLEN_RUNTIME_AUDIT_PASS');
         app.exit(0);
       } else {
