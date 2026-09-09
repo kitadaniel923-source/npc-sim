@@ -77,8 +77,10 @@ function runRuntimeAudit(win) {
           if (key === 'learning') return (n.learning?.attempts && Object.keys(n.learning.attempts).length > 0);
           if (key === 'memory') return Array.isArray(n.memories) && n.memories.length > 0;
           if (key === 'actions') return Array.isArray(n.actionHistory) && n.actionHistory.length > 0;
+          if (key === 'causality') return Number(n.causality?.outcomes || 0) > 0;
           return n[key] != null;
         }).length;
+        const assets = window.EVERGLEN_ASSET_REGISTRY;
         return {
           ready:true,
           running:!!state.running,
@@ -92,7 +94,11 @@ function runRuntimeAudit(win) {
             actions:count('actions'),
             learning:count('learning'),
             memories:count('memory'),
-            consequences:count('consequence')
+            consequences:count('consequence'),
+            causality:count('causality'),
+            assetsReady:!!assets?.ready,
+            assetSprites:Number(assets?.stats?.loadedSprites || 0),
+            assetDraws:Number(assets?.stats?.draws || 0)
           }
         };
       })()`, true);
@@ -123,6 +129,10 @@ function runRuntimeAudit(win) {
       if ((live.learning || 0) === 0) liveFailures.push('no NPC learning records created');
       if ((live.memories || 0) === 0) liveFailures.push('no NPC memories recorded');
       if ((live.consequences || 0) === 0) liveFailures.push('no NPC consequences recorded');
+      if ((live.causality || 0) === 0) liveFailures.push('no NPC causal outcomes recorded');
+      if (!live.assetsReady) liveFailures.push('supplemental asset registry not ready');
+      if ((live.assetSprites || 0) === 0) liveFailures.push('supplemental asset registry has no sprites');
+      if ((live.assetDraws || 0) === 0) liveFailures.push('supplemental assets were not rendered');
 
       console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(result.report));
       console.log('EVERGLEN_RUNTIME_AUDIT_LIVE=' + JSON.stringify({tick:result.tick,npcCount:result.npcCount,live,failures:liveFailures}));
