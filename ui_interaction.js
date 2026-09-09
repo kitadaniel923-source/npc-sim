@@ -10,6 +10,6 @@
   function installGlobalFixes(){document.addEventListener('click',event=>{const target=event.target?.closest?.('button');if(!target)return;if(target.id==='closeInspector'){const s=state();if(s)s.selected=null;render();return;}if(target.id==='godToolToggle'){const panel=document.getElementById('godToolPanel');if(panel)panel.classList.toggle('open');return;}if(target.id==='chronicleClose'){const modal=document.getElementById('chronicleModal');if(modal)modal.style.display='none';}},true);}
   function loadLayer(src){if(document.querySelector(`script[data-everglen-layer="${src}"]`))return;const script=document.createElement('script');script.src=src;script.dataset.everglenLayer=src;script.async=false;document.head.appendChild(script);}
   const style=document.createElement('style');style.textContent='.side .panel[data-everglen-hidden="1"]{display:none!important}.everglen-panel-toggle{opacity:.85}.everglen-panel-toggle:hover{opacity:1}';document.head.appendChild(style);
-  const boot=()=>{addPanelControls();installGlobalFixes();window.EVERGLEN_UI={addPanelControls,hide,show,togglePanel};loadLayer('asset_pack_runtime.js');loadLayer('phase1_deep_causality.js');};
+  const boot=()=>{addPanelControls();installGlobalFixes();window.EVERGLEN_UI={addPanelControls,hide,show,togglePanel};loadLayer('asset_pack_runtime.js');loadLayer('phase1_deep_causality.js');loadLayer('runtime_integration_audit.js');};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
