@@ -81,6 +81,7 @@ function runRuntimeAudit(win) {
           return n[key] != null;
         }).length;
         const assets = window.EVERGLEN_ASSET_REGISTRY;
+        const baked3d = window.EVERGLEN_3D_ASSETS?.status;
         return {
           ready:true,
           running:!!state.running,
@@ -98,7 +99,10 @@ function runRuntimeAudit(win) {
             causality:count('causality'),
             assetsReady:!!assets?.ready,
             assetSprites:Number(assets?.stats?.loadedSprites || 0),
-            assetDraws:Number(assets?.stats?.draws || 0)
+            assetDraws:Number(assets?.stats?.draws || 0),
+            threeDReady:!!baked3d?.ready,
+            threeDFrames:Number(baked3d?.frames || 0),
+            threeDDraws:Number(baked3d?.draws || 0)
           }
         };
       })()`, true);
@@ -133,6 +137,9 @@ function runRuntimeAudit(win) {
       if (!live.assetsReady) liveFailures.push('supplemental asset registry not ready');
       if ((live.assetSprites || 0) === 0) liveFailures.push('supplemental asset registry has no sprites');
       if ((live.assetDraws || 0) === 0) liveFailures.push('supplemental assets were not rendered');
+      if (!live.threeDReady) liveFailures.push('baked 3D asset atlas not ready');
+      if ((live.threeDFrames || 0) === 0) liveFailures.push('baked 3D asset atlas has no frames');
+      if ((live.threeDDraws || 0) === 0) liveFailures.push('baked 3D assets were not rendered');
 
       console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(result.report));
       console.log('EVERGLEN_RUNTIME_AUDIT_LIVE=' + JSON.stringify({tick:result.tick,npcCount:result.npcCount,live,failures:liveFailures}));
