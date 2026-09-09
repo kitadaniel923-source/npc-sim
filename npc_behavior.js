@@ -31,7 +31,7 @@
   function step(){
     if(!state.running||state.tick===lastTick)return;lastTick=state.tick;
     const people=window.SIM_BUDGET?.relevantBatch?.(alive().length)||alive();
-    people.forEach(n=>{window.NPC_PERSONALITY?.ensure(n);window.NPC_NEEDS?.update(n);routine(n);if(state.tick%3===0)decisions?.choose?.(n);if(state.tick%2===0)action(n);if(state.tick%6===0)memory?.observe?.(n);});
+    people.forEach(n=>{window.NPC_PERSONALITY?.ensure(n);routine(n);if(state.tick%3===0)decisions?.choose?.(n);if(state.tick%2===0)action(n);if(state.tick%6===0)memory?.observe?.(n);});
     const s=alive().find(n=>n.id===state.selected);if(s){const chart=document.getElementById('needsChart'),mood=document.getElementById('selectedNeedMood');if(chart){const rows=[['Hunger',100-s.needs.hunger],['Thirst',100-s.needs.thirst],['Energy',s.needs.energy],['Safety',s.needs.safety],['Social',100-s.needs.social],['Belonging',100-s.needs.belonging],['Purpose',100-s.needs.purpose],['Health',s.needs.health]];chart.innerHTML=rows.map(([k,v])=>`<div class="need"><div><span>${k}</span><b>${Math.round(v)}%</b></div><div class="bar"><i style="width:${clamp(v)}%"></i></div></div>`).join('');}if(mood)mood.textContent=`${s.needState||'stable'} · Mood ${Math.round(s.mood)}`;}}
   }
   window.NPC_BEHAVIOR={step,routine,action};
