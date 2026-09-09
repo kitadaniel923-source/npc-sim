@@ -1,0 +1,26 @@
+name: Everglen Runtime Simulation Audit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  runtime-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run headless Electron simulation audit
+        run: xvfb-run -a env ELECTRON_DISABLE_SANDBOX=1 EVERGLEN_RUNTIME_AUDIT=1 npm start
