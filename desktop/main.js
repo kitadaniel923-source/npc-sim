@@ -43,6 +43,7 @@ function runRuntimeAudit(win) {
   const started = Date.now();
   const timeoutMs = 30000;
   const pollMs = 250;
+  const targetTick = 20;
   let lastTick = null;
 
   const poll = async () => {
@@ -57,11 +58,27 @@ function runRuntimeAudit(win) {
         if (!window.EVERGLEN_DEEP_AUDIT) return {ready:false, reason:'audit-not-loaded'};
         const state = window.SIM_STATE;
         if (!state) return {ready:false, reason:'state-not-created'};
+        const npcs = Array.isArray(state.npcs) ? state.npcs.filter(n => n && n.alive) : [];
+        const count = key => npcs.filter(n => {
+          if (key === 'learning') return (n.learning?.attempts && Object.keys(n.learning.attempts).length > 0);
+          if (key === 'memory') return Array.isArray(n.memories) && n.memories.length > 0;
+          if (key === 'actions') return Array.isArray(n.actionHistory) && n.actionHistory.length > 0;
+          return n[key] != null;
+        }).length;
         return {
           ready:true,
           running:!!state.running,
           tick:typeof state.tick === 'number' ? state.tick : null,
-          report:window.EVERGLEN_DEEP_AUDIT.test()
+          report:window.EVERGLEN_DEEP_AUDIT.test(),
+          live:{
+            goals:count('longTermGoal'),
+            plans:count('currentPlan'),
+            decisions:count('aiDecision'),
+            actions:count('actions'),
+            learning:count('learning'),
+            memories:count('memory'),
+            consequences:count('consequence')
+          }
         };
       })()`, true);
 
@@ -72,13 +89,32 @@ function runRuntimeAudit(win) {
         return;
       }
 
+      if (result.tick == null || result.tick < targetTick) {
+        setTimeout(poll, pollMs);
+        return;
+      }
+
+      const live = result.live || {};
+      const liveFailures = [];
+      if (result.tick < targetTick) liveFailures.push(`tick did not reach ${targetTick}`);
+      if (!result.running) liveFailures.push('simulation stopped before live audit');
+      if ((live.goals || 0) === 0) liveFailures.push('no NPC goals created');
+      if ((live.plans || 0) === 0) liveFailures.push('no NPC plans created');
+      if ((live.decisions || 0) === 0) liveFailures.push('no NPC decisions created');
+      if ((live.actions || 0) === 0) liveFailures.push('no NPC actions executed');
+      if ((live.learning || 0) === 0) liveFailures.push('no NPC learning records created');
+      if ((live.memories || 0) === 0) liveFailures.push('no NPC memories recorded');
+      if ((live.consequences || 0) === 0) liveFailures.push('no NPC consequences recorded');
+
       console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(result.report));
+      console.log('EVERGLEN_RUNTIME_AUDIT_LIVE=' + JSON.stringify({tick:result.tick,live,failures:liveFailures}));
       console.log('EVERGLEN_RUNTIME_AUDIT_STATE=' + JSON.stringify({running:result.running,tick:result.tick}));
-      if (result.report?.ok) {
+
+      if (result.report?.ok && liveFailures.length === 0) {
         console.log('EVERGLEN_RUNTIME_AUDIT_PASS');
         app.exit(0);
       } else {
-        console.error('EVERGLEN_RUNTIME_AUDIT_FAIL');
+        console.error('EVERGLEN_RUNTIME_AUDIT_FAIL=' + JSON.stringify(liveFailures));
         app.exit(1);
       }
     } catch (error) {
