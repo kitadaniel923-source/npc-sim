@@ -4,12 +4,18 @@
   const alive=()=>state.npcs.filter(n=>n.alive);
   const budget=()=>window.SIM_BUDGET;
   const EMOTION={joy:{mood:1.2,trust:.8,fear:-.2,grievance:-.5},trust:{mood:.6,trust:1.2,fear:-.4,grievance:-.8},fear:{mood:-.8,trust:-.9,fear:1.5,grievance:.4},anger:{mood:-.7,trust:-1,fear:.1,grievance:1.5},grief:{mood:-1,trust:-.2,fear:.4,grievance:1},pride:{mood:.7,trust:.2,fear:-.1,grievance:-.2}};
-  function ensure(n){n.memories=Array.isArray(n.memories)?n.memories:[];n.memoryIndex=n.memoryIndex||{};n.grievance=n.grievance||0;n.emotionalMemory=n.emotionalMemory||{joy:0,trust:0,fear:0,anger:0,grief:0,pride:0};n.trustMap=n.trustMap||{};n.fearMap=n.fearMap||{};n.grudgeMap=n.grudgeMap||{};}
+  function ensure(n){
+    n.memories=Array.isArray(n.memories)?n.memories:[];
+    if(!n.memoryIndex||typeof n.memoryIndex!=='object'||Array.isArray(n.memoryIndex))n.memoryIndex={};
+    n.grievance=Number.isFinite(Number(n.grievance))?Number(n.grievance):0;
+    n.emotionalMemory=n.emotionalMemory&&typeof n.emotionalMemory==='object'?n.emotionalMemory:{joy:0,trust:0,fear:0,anger:0,grief:0,pride:0};
+    n.trustMap=n.trustMap&&typeof n.trustMap==='object'?n.trustMap:{};n.fearMap=n.fearMap&&typeof n.fearMap==='object'?n.fearMap:{};n.grudgeMap=n.grudgeMap&&typeof n.grudgeMap==='object'?n.grudgeMap:{};
+  }
   function yearsAgo(m){return Math.max(0,state.year-(m.year||state.year));}
   function effectiveImportance(m){const age=yearsAgo(m),decay=m.permanent?1:Math.max(.18,1-age*(m.importance>=3?.035:.075));return (m.importance||1)*decay;}
   function indexKey(type,text,targetId){return `${type}:${targetId||''}:${text}`;}
   function remember(n,text,type='event',importance=1,targetId=null,emotion='neutral',permanent=false){ensure(n);const key=indexKey(type,text,targetId);if(n.memoryIndex[key])return n.memories.find(m=>m.key===key)||null;const m={id:`m_${Date.now()}_${Math.random().toString(36).slice(2)}`,key,year:state.year,day:state.day,type,text,importance:clamp(importance,.1,5),targetId,emotion,permanent:!!permanent,lastRecall:state.tick,recalls:0,consequence:0};n.memories.unshift(m);n.memoryIndex[key]=m.id;n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));n.memories=n.memories.slice(0,40);return m;}
-  function strengthen(n,m,amount=.5){if(!m)return;m.importance=clamp((m.importance||1)+amount,.1,5);m.lastRecall=state.tick;m.recalls=(m.recalls||0)+1;n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));}
+  function strengthen(n,m,amount=.5){ensure(n);if(!m)return;m.importance=clamp((m.importance||1)+amount,.1,5);m.lastRecall=state.tick;m.recalls=(m.recalls||0)+1;n.memories.sort((a,b)=>effectiveImportance(b)-effectiveImportance(a));}
   function relationDelta(n,targetId,trustDelta=0,grudgeDelta=0,fearDelta=0){ensure(n);if(!targetId)return;n.trustMap[targetId]=clamp((n.trustMap[targetId]||0)+trustDelta,-100,100);n.grudgeMap[targetId]=clamp((n.grudgeMap[targetId]||0)+grudgeDelta,0,100);n.fearMap[targetId]=clamp((n.fearMap[targetId]||0)+fearDelta,0,100);}
   function applyEmotion(n,emotion,power=1){ensure(n);const e=EMOTION[emotion];if(!e)return;Object.entries(e).forEach(([k,v])=>{if(k==='grievance')n.grievance=clamp(n.grievance+v*power);else n.emotionalMemory[k]=clamp((n.emotionalMemory[k]||0)+v*power,-100,100);});n.mood=clamp((n.mood??65)+(e.mood||0)*power);}
   function experience(n,text,type='event',importance=1,targetId=null,emotion='neutral',consequence=0,permanent=false){ensure(n);const m=remember(n,text,type,importance,targetId,emotion,permanent);if(!m)return null;m.consequence=consequence;applyEmotion(n,emotion,Math.max(.5,importance/2));if(targetId&&consequence){if(consequence>0)relationDelta(n,targetId,-consequence,consequence*1.2,emotion==='fear'?consequence:0);else relationDelta(n,targetId,-consequence,0,0);}return m;}
