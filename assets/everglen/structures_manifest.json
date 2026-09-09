@@ -1,1 +1,1 @@
-{"version":4,"atlas":{"pc_walls":{"x":0,"y":0,"w":84,"h":100},"pc_roofs":{"x":0,"y":101,"w":50,"h":50},"pc_props":{"x":51,"y":101,"w":50,"h":50},"pc_interior_props":{"x":0,"y":152,"w":76,"h":48},"pc_workbench":{"x":77,"y":152,"w":24,"h":44},"castle_a":{"x":0,"y":201,"w":40,"h":59},"castle_b":{"x":41,"y":201,"w":40,"h":59}}}
+{"version":1,"atlas":{"castle_a":{"x":0,"y":0,"w":20,"h":29},"castle_b":{"x":21,"y":0,"w":20,"h":29},"pc_walls":{"x":42,"y":0,"w":42,"h":50},"pc_roofs":{"x":85,"y":0,"w":25,"h":25}}}
