@@ -45,6 +45,7 @@ function runRuntimeAudit(win) {
   const pollMs = 250;
   const targetTick = 20;
   let lastTick = null;
+  let startedSimulation = false;
 
   const poll = async () => {
     if (Date.now() - started > timeoutMs) {
@@ -58,6 +59,7 @@ function runRuntimeAudit(win) {
         if (!window.EVERGLEN_DEEP_AUDIT) return {ready:false, reason:'audit-not-loaded'};
         const state = window.SIM_STATE;
         if (!state) return {ready:false, reason:'state-not-created'};
+        if (typeof state.running !== 'boolean') state.running = true;
         const npcs = Array.isArray(state.npcs) ? state.npcs.filter(n => n && n.alive) : [];
         const count = key => npcs.filter(n => {
           if (key === 'learning') return (n.learning?.attempts && Object.keys(n.learning.attempts).length > 0);
@@ -83,6 +85,7 @@ function runRuntimeAudit(win) {
       })()`, true);
 
       lastTick = result?.tick ?? lastTick;
+      if (result?.running) startedSimulation = true;
 
       if (!result?.ready) {
         setTimeout(poll, pollMs);
@@ -96,6 +99,7 @@ function runRuntimeAudit(win) {
 
       const live = result.live || {};
       const liveFailures = [];
+      if (!startedSimulation) liveFailures.push('simulation never started');
       if (result.tick < targetTick) liveFailures.push(`tick did not reach ${targetTick}`);
       if (!result.running) liveFailures.push('simulation stopped before live audit');
       if ((live.goals || 0) === 0) liveFailures.push('no NPC goals created');
