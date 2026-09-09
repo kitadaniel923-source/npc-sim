@@ -1,102 +1,13 @@
-// Everglen supplemental asset registry.
-// Loads the project-owned compressed atlas/manifest bundle and exposes deterministic,
-// tag-aware sprite selection so supplemental assets are reachable by world context.
+// Everglen runtime asset registry. Prefers the compressed supplemental bundle and falls back to checked-in runtime atlases.
 (() => {
   'use strict';
-  const root = 'assets/everglen/';
-  const registry = {
-    ready:false,
-    loading:false,
-    error:null,
-    image:null,
-    sprites:[],
-    categories:{},
-    stats:{draws:0,selected:0,byCategory:{},loadedSprites:0},
-    pick(tags=[],seed=0){
-      const wanted = (Array.isArray(tags)?tags:[tags]).map(x=>String(x||'').toLowerCase()).filter(Boolean);
-      const pool = wanted.length ? this.sprites.filter(s => wanted.some(t => s.tags.includes(t) || s.label.includes(t))) : this.sprites;
-      if (!pool.length) return null;
-      return pool[Math.abs(Math.floor(seed)) % pool.length];
-    },
-    draw(ctx,tags,x,y,w,h,seed=0,flip=false){
-      if(!this.ready || !this.image || !ctx) return false;
-      const s=this.pick(tags,seed); if(!s) return false;
-      ctx.save();
-      if(flip){ctx.translate(x+w,y);ctx.scale(-1,1);x=0;}
-      ctx.drawImage(this.image,s.x,s.y,s.w,s.h,x,y,w,h);
-      ctx.restore();
-      this.stats.draws++;
-      this.stats.selected++;
-      const cat=s.category||'misc';
-      this.stats.byCategory[cat]=(this.stats.byCategory[cat]||0)+1;
-      s.used=(s.used||0)+1;
-      return true;
-    }
-  };
+  const root='assets/everglen/';
+  const registry={ready:false,loading:false,error:null,sprites:[],categories:{},stats:{draws:0,selected:0,byCategory:{},loadedSprites:0},pick(tags=[],seed=0){const wanted=(Array.isArray(tags)?tags:[tags]).map(x=>String(x||'').toLowerCase()).filter(Boolean);const pool=wanted.length?this.sprites.filter(s=>wanted.some(t=>s.tags.includes(t)||s.label.includes(t))):this.sprites;return pool.length?pool[Math.abs(Math.floor(seed))%pool.length]:null},draw(ctx,tags,x,y,w,h,seed=0,flip=false){if(!this.ready||!ctx)return false;const s=this.pick(tags,seed);if(!s?.image)return false;ctx.save();if(flip){ctx.translate(x+w,y);ctx.scale(-1,1);x=0}ctx.drawImage(s.image,s.x,s.y,s.w,s.h,x,y,w,h);ctx.restore();this.stats.draws++;this.stats.selected++;const c=s.category||'misc';this.stats.byCategory[c]=(this.stats.byCategory[c]||0)+1;s.used=(s.used||0)+1;return true}};
   window.EVERGLEN_ASSET_REGISTRY=registry;
-
-  const bytesFromB64=b64=>{
-    let value=String(b64).trim().replace(/^data:[^,]+,/,'').replace(/[^A-Za-z0-9+/_=-]/g,'').replace(/-/g,'+').replace(/_/g,'/');
-    value=value.padEnd(value.length+((4-value.length%4)%4),'=');
-    const raw=atob(value);
-    const out=new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
-    return out;
-  };
-  const textFromBytes=bytes=>new TextDecoder().decode(bytes);
-  const inflate=async bytes=>{
-    if(typeof DecompressionStream!=='function') throw new Error('DecompressionStream unavailable');
-    const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  };
   const isFrame=v=>v&&Number.isFinite(Number(v.x))&&Number.isFinite(Number(v.y))&&Number(v.w)>0&&Number(v.h)>0;
-
-  function flatten(node,path=[],out=[]){
-    if(Array.isArray(node)){node.forEach((v,i)=>flatten(v,path.concat(i),out));return out;}
-    if(!node||typeof node!=='object')return out;
-    if(isFrame(node)){
-      const label=String(node.name||node.key||node.id||node.path||path.join('/')).toLowerCase();
-      const tokens=label.split(/[^a-z0-9]+/).filter(Boolean);
-      const category = tokens.some(t=>['tree','bush','rock','plant','flower','grass','cactus','nature'].includes(t))?'nature'
-        : tokens.some(t=>['market','tavern','blacksmith','village','house','wall','castle','building','prop','fixture','architecture'].includes(t))?'settlement'
-        : tokens.some(t=>['ore','gold','iron','copper','coal','diamond','emerald','amethyst','lapis','redstone','mineral'].includes(t))?'resource'
-        : tokens.some(t=>['boat','ship','raft','sail','dock','vessel','port'].includes(t))?'maritime'
-        : tokens.some(t=>['armor','armour','weapon','sword','shield','helmet','axe','bow','equipment'].includes(t))?'equipment'
-        : tokens.some(t=>['knight','soldier','warrior','character','npc'].includes(t))?'character':'misc';
-      out.push({x:Number(node.x),y:Number(node.y),w:Number(node.w),h:Number(node.h),label,tags:tokens,category,path:path.join('/'),used:0});
-      return out;
-    }
-    Object.entries(node).forEach(([k,v])=>flatten(v,path.concat(k),out));
-    return out;
-  }
-
-  async function load(){
-    if(registry.loading||registry.ready)return;
-    registry.loading=true;
-    try{
-      const [atlasText,manifestText]=await Promise.all([
-        fetch(root+'supplemental_asset_atlas.b64').then(r=>r.text()),
-        fetch(root+'supplemental_asset_manifest.json.gz.b64').then(r=>r.text())
-      ]);
-      const manifest=JSON.parse(textFromBytes(await inflate(bytesFromB64(manifestText))));
-      const sprites=flatten(manifest);
-      if(!sprites.length) throw new Error('supplemental manifest contained no sprite frames');
-      const blob=new Blob([bytesFromB64(atlasText)],{type:'image/webp'});
-      const url=URL.createObjectURL(blob);
-      const image=new Image();
-      await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;image.src=url;});
-      registry.image=image;
-      registry.sprites=sprites;
-      registry.stats.loadedSprites=sprites.length;
-      sprites.forEach(s=>{registry.categories[s.category]=(registry.categories[s.category]||0)+1;});
-      registry.ready=true;
-      registry.error=null;
-      console.log('Everglen supplemental assets ready:',sprites.length);
-    }catch(error){
-      registry.error=String(error?.stack||error);
-      console.warn('Everglen supplemental assets unavailable:',registry.error);
-    }finally{registry.loading=false;}
-  }
-  registry.load=load;
-  load();
+  const classify=label=>{const t=label.split(/[^a-z0-9]+/).filter(Boolean);return t.some(x=>['tree','bush','rock','plant','flower','grass','cactus','nature'].includes(x))?'nature':t.some(x=>['market','tavern','blacksmith','village','house','wall','castle','building','prop','fixture','architecture'].includes(x))?'settlement':t.some(x=>['ore','gold','iron','copper','coal','diamond','emerald','amethyst','lapis','redstone','mineral'].includes(x))?'resource':t.some(x=>['boat','ship','raft','sail','dock','vessel','port'].includes(x))?'maritime':t.some(x=>['armor','armour','weapon','sword','shield','helmet','axe','bow','equipment'].includes(x))?'equipment':t.some(x=>['knight','soldier','warrior','character','npc'].includes(x))?'character':'misc'};
+  function flatten(node,path=[],out=[],image=null){if(Array.isArray(node)){node.forEach((v,i)=>flatten(v,path.concat(i),out,image));return out}if(!node||typeof node!=='object')return out;if(isFrame(node)){const label=String(node.name||node.key||node.id||node.path||path.join('/')).toLowerCase();out.push({x:+node.x,y:+node.y,w:+node.w,h:+node.h,label,tags:label.split(/[^a-z0-9]+/).filter(Boolean),category:classify(label),path:path.join('/'),image,used:0});return out}Object.entries(node).forEach(([k,v])=>flatten(v,path.concat(k),out,image));return out}
+  async function fallback(){const specs=['terrain_manifest.json','world_manifest.json','characters_manifest.json','structures_manifest.json','plants_manifest.json','ruins_manifest.json','race_prof_manifest.json','kingdom_manifest.json','ores_manifest.json'];const out=[];for(const file of specs){try{const r=await fetch(root+file);if(!r.ok)continue;const m=await r.json();const key=file.replace('_manifest.json','').replace('.json','');const atlasPath=m.image||m.atlasImage||m.source||({terrain:'terrain_atlas.webp',world:'world_atlas.webp',characters:'characters_atlas.webp',structures:'structures_atlas.webp',plants:'plants_atlas.png',ruins:'ruins_atlas.png',race_prof:'race_prof_atlas.webp',kingdom:'kingdom_atlas.webp',ores:'ores_atlas.webp'}[key]);if(!atlasPath)continue;const im=new Image();await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=root+atlasPath});flatten(m.atlas||m.races||m.sprites||m,[key],out,im)}catch(e){console.warn('Optional atlas unavailable',file,String(e?.message||e))}}return out}
+  async function load(){if(registry.loading||registry.ready)return;registry.loading=true;try{let sprites=[];try{const [at,mt]=await Promise.all([fetch(root+'supplemental_asset_atlas.b64').then(r=>r.text()),fetch(root+'supplemental_asset_manifest.json.gz.b64').then(r=>r.text())]);let v=at.trim().replace(/^data:[^,]+,/,'').replace(/[^A-Za-z0-9+/_=-]/g,'').replace(/-/g,'+').replace(/_/g,'/');v=v.padEnd(v.length+((4-v.length%4)%4),'=');let m=mt.trim().replace(/^data:[^,]+,/,'').replace(/[^A-Za-z0-9+/_=-]/g,'').replace(/-/g,'+').replace(/_/g,'/');m=m.padEnd(m.length+((4-m.length%4)%4),'=');const raw=atob(v),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0)),mr=atob(m),mb=Uint8Array.from(mr,c=>c.charCodeAt(0));if(!window.DecompressionStream)throw new Error('DecompressionStream unavailable');const stream=new Blob([mb]).stream().pipeThrough(new DecompressionStream('gzip'));const manifest=JSON.parse(await new Response(stream).text());const blob=new Blob([bytes],{type:'image/webp'}),url=URL.createObjectURL(blob),im=new Image();await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=url});sprites=flatten(manifest,[],[],im)}catch(e){console.warn('Supplemental bundle unavailable, using checked-in atlases:',String(e?.message||e));sprites=await fallback()}registry.sprites=sprites;registry.stats.loadedSprites=sprites.length;sprites.forEach(s=>registry.categories[s.category]=(registry.categories[s.category]||0)+1);if(!sprites.length)throw new Error('No runtime atlas sprites found');registry.ready=true;registry.error=null;console.log('Everglen asset registry ready:',sprites.length,'sprites')}catch(e){registry.error=String(e?.stack||e);console.error('Everglen asset registry failed:',registry.error)}finally{registry.loading=false}}
+  registry.load=load;load();
 })();
