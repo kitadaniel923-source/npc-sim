@@ -1,0 +1,80 @@
+name: Everglen 3D Asset Bake
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: '3D source path inside source_assets/3d'
+        required: true
+        default: 'Mediavel Pack (2).blend'
+      max_assets:
+        description: 'Maximum mesh objects to bake'
+        required: false
+        default: '512'
+
+permissions:
+  contents: write
+
+env:
+  BLENDER_VERSION: '4.5.13'
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download Blender LTS
+        run: |
+          curl -L --fail --retry 3 \
+            -o /tmp/blender.tar.xz \
+            "https://download.blender.org/release/Blender4.5/blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          mkdir -p /opt/blender
+          tar -xJf /tmp/blender.tar.xz -C /opt/blender --strip-components=1
+          /opt/blender/blender --version
+
+      - name: Validate 3D source
+        env:
+          SOURCE_PATH: ${{ inputs.source }}
+        run: |
+          test -f "source_assets/3d/${SOURCE_PATH}"
+
+      - name: Export and bake with Blender
+        env:
+          SOURCE_PATH: ${{ inputs.source }}
+          MAX_ASSETS: ${{ inputs.max_assets }}
+        run: |
+          rm -rf build/everglen_3d
+          /opt/blender/blender -b --python tools/blender_export_and_bake.py -- \
+            --source "source_assets/3d/${SOURCE_PATH}" \
+            --output-dir build/everglen_3d \
+            --max-assets "${MAX_ASSETS}"
+          python tools/pack_3d_atlas.py \
+            --input-dir build/everglen_3d \
+            --output assets/everglen/medieval_3d_mega_atlas.webp \
+            --manifest assets/everglen/medieval_3d_mega_manifest.json
+
+      - name: Validate atlas
+        run: |
+          test -s assets/everglen/medieval_3d_mega_atlas.webp
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('assets/everglen/medieval_3d_mega_manifest.json')
+          data=json.loads(p.read_text())
+          assert data['assets'], '3D atlas has no assets'
+          assert data['framesPerAsset'] >= 4, '3D atlas needs multiple views'
+          print('3D atlas:', len(data['assets']), 'assets x', data['framesPerAsset'], 'frames')
+          PY
+
+      - name: Commit generated runtime atlas
+        env:
+          SOURCE_PATH: ${{ inputs.source }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/everglen/medieval_3d_mega_atlas.webp assets/everglen/medieval_3d_mega_manifest.json
+          git commit -m "Bake 3D runtime mega atlas from ${SOURCE_PATH}" || echo 'No atlas changes to commit'
+          git push
