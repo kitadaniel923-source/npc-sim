@@ -1,13 +1,12 @@
 // Phase 1 deep causality bridge.
 // Converts outcomes into persistent momentum that changes future goals, planning and decisions.
 (() => {
-  const state=window.SIM_STATE;
-  if(!state)return;
-  const goals=window.NPC_GOALS, learning=window.NPC_LEARNING, memory=window.NPC_MEMORY;
+  const state=window.SIM_STATE;if(!state)return;
+  const goals=window.NPC_GOALS,learning=window.NPC_LEARNING;
   const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,Number(v)||0));
   const alive=()=>state.npcs||[];
 
-  if(goals?.recordOutcome && !goals.recordOutcome._deepCausality){
+  if(goals?.recordOutcome&&!goals.recordOutcome._deepCausality){
     const original=goals.recordOutcome;
     const wrapped=(n,success=true,reason='')=>{
       if(!n)return;
@@ -21,16 +20,20 @@
       if(success){gl.successes++;gl.streak=Math.max(0,gl.streak)+1;gl.momentum=clamp(gl.momentum+1.4+Math.min(1.5,gl.streak*.08),-25,25)}
       else{gl.failures++;gl.streak=Math.min(0,gl.streak)-1;gl.momentum=clamp(gl.momentum-1.8-Math.min(2,Math.abs(gl.streak)*.12),-25,25)}
       gl.lastTick=state.tick;
-      if(g){
-        g.outcomeCount=(g.outcomeCount||0)+1;
-        g.successCount=(g.successCount||0)+(success?1:0);
-        g.failureCount=(g.failureCount||0)+(success?0:1);
-        g.momentum=clamp((g.momentum||0)+(success?1.1:-1.5),-20,20);
-        g.lastOutcome={success,tick:state.tick,reason};
-        if((g.failureCount||0)>=3&&!success)n.goalReassessmentAt=state.tick+1;
-      }
+      if(g){g.outcomeCount=(g.outcomeCount||0)+1;g.successCount=(g.successCount||0)+(success?1:0);g.failureCount=(g.failureCount||0)+(success?0:1);g.momentum=clamp((g.momentum||0)+(success?1.1:-1.5),-20,20);g.lastOutcome={success,tick:state.tick,reason};if((g.failureCount||0)>=3&&!success)n.goalReassessmentAt=state.tick+1;}
     };
     wrapped._deepCausality=true;goals.recordOutcome=wrapped;
+  }
+
+  if(goals?.scoreAction&&!goals.scoreAction._deepCausality){
+    const original=goals.scoreAction;
+    const wrapped=(n,action)=>{
+      const base=Number(original(n,action))||0;
+      const learned=Number(learning?.actionModifier?.(n,action))||0;
+      const momentum=Number(n?.longTermGoal?.momentum)||0;
+      return base+learned*.55+momentum*.18;
+    };
+    wrapped._deepCausality=true;goals.scoreAction=wrapped;
   }
 
   if(goals?.refresh&&!goals.refresh._deepCausality){
@@ -60,13 +63,7 @@
     const keys=Object.keys(n.causality.processed);if(keys.length>64)keys.slice(0,keys.length-64).forEach(k=>delete n.causality.processed[k]);
   }
 
-  function step(){
-    alive().filter(n=>n.alive).forEach(n=>{
-      adaptMemory(n);
-      if(n.goalReassessmentAt!=null&&state.tick>=n.goalReassessmentAt){goals?.refresh?.(n,true);n.goalReassessmentAt=null;}
-    });
-  }
-
+  function step(){alive().filter(n=>n.alive).forEach(n=>{adaptMemory(n);if(n.goalReassessmentAt!=null&&state.tick>=n.goalReassessmentAt){goals?.refresh?.(n,true);n.goalReassessmentAt=null;}});}
   window.EVERGLEN_PHASE1_CAUSALITY={step};
   if(state.registerSystem)state.registerSystem({name:'phase1-deep-causality',step,priority:112});
 })();
