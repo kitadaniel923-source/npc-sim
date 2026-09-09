@@ -7,17 +7,22 @@
   function ensure(n){
     n.needs = n.needs || {hunger:n.hunger??20, thirst:20, energy:n.energy??80, safety:75, social:45, belonging:50, wealth:40, purpose:45, health:n.health??100};
     n.needs.hunger = clamp(n.hunger ?? n.needs.hunger);
+    n.needs.thirst = clamp(n.needs.thirst);
     n.needs.energy = clamp(n.energy ?? n.needs.energy);
+    n.needs.safety = clamp(n.needs.safety);
+    n.needs.social = clamp(n.needs.social);
+    n.needs.belonging = clamp(n.needs.belonging);
+    n.needs.wealth = clamp(n.needs.wealth);
+    n.needs.purpose = clamp(n.needs.purpose);
     n.needs.health = clamp(n.health ?? n.needs.health);
     n.hunger = n.needs.hunger; n.energy = n.needs.energy; n.health = n.needs.health;
   }
 
   function update(n){
     ensure(n);
-    const danger = state.war ? 45 : 75;
     n.needs.hunger = clamp(n.needs.hunger + .035 * state.speed);
     n.needs.thirst = clamp(n.needs.thirst + .045 * state.speed);
-    n.needs.energy = clamp(n.needs.energy - .025 * state.speed + (n.roleId==='child'?-.01:0));
+    n.needs.energy = clamp(n.needs.energy - .025 * state.speed + (n.roleId==='child' ? -.01 : 0));
     n.needs.social = clamp(n.needs.social + .018 * state.speed);
     n.needs.belonging = clamp(n.needs.belonging + (n.familyId ? .006 : .018) * state.speed);
     n.needs.purpose = clamp(n.needs.purpose + (n.goal && n.goal!=='Explore' ? .003 : .012) * state.speed);
@@ -42,4 +47,9 @@
   }
 
   window.NPC_NEEDS = {ensure, update};
+  if(state.registerSystem) state.registerSystem({name:'needs',step:()=>{
+    if(!state.running) return;
+    const people=window.SIM_BUDGET?.relevantBatch?.(alive().length)||alive();
+    people.forEach(update);
+  },priority:42});
 })();
