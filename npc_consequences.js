@@ -23,14 +23,15 @@
       n.mood = clamp((n.mood || 65) + 1);
     } else if (action === 'trade' || action === 'wealth') {
       relationships()?.interact?.(n,target,'trade',0.4);
+    } else if (action === 'confront') {
+      relationships()?.interact?.(n,target,'insult',1.2);
     }
   }
 
   function consequence(n) {
-    if (!n.lastAction || n.lastAction === n._lastConsequenceAction) return;
+    if (!n.lastAction || (n._lastConsequenceTick === state.tick && n._lastConsequenceAction === n.lastAction)) return;
     const action = n.aiDecision?.action;
     const text = n.lastAction;
-    n._lastConsequenceAction = text;
 
     if (action === 'eat') {
       remember(n, 'Eating restored my immediate need for food.', 'need', 2, null, 'relief');
@@ -59,10 +60,15 @@
       remember(n, text, 'training', 1.5, null, 'pride');
     } else if (action === 'study') {
       remember(n, text, 'education', 1.5, null, 'pride');
+    } else if (action === 'confront') {
+      remember(n, text, 'conflict', 2.5, n.aiDecision?.targetId || null, 'anger');
+      applyRelationshipConsequence(n);
     }
 
     trace()?.record?.(n, `Action completed: ${text}`, 'consequence', action || text, .7);
     n.consequence = {tick:state.tick, action:action || text, text};
+    n._lastConsequenceTick = state.tick;
+    n._lastConsequenceAction = text;
   }
 
   function step() {
