@@ -20,15 +20,12 @@ The runtime mega atlas is reconstructed from the checked-in base64 atlas parts a
 - The contextual renderer selects assets from settlement, nature, resource, maritime, equipment and character categories.
 - A slow catalog sweep traverses the source records so imported sprites remain reachable instead of becoming dead files.
 
-## Storage
+## 3D baked runtime layer
 
-- `supplemental_asset_atlas.part1.b64`
-- `supplemental_asset_atlas.part2.b64`
-- `supplemental_asset_manifest.part1.gz.b64`
-- `supplemental_asset_manifest.part2.gz.b64`
+- `medieval_3d_atlas.webp` contains eight orthographic baked views from the supplied Medieval Pack OBJ/STL geometry.
+- `medieval_3d_manifest.json` defines the atlas contract and source provenance.
+- `everglen_3d_asset_stage.js` loads the baked atlas through the canonical render registry and places variants around settlements and ports.
+- `tools/bake_3d_assets.py` provides a reproducible OBJ/STL bake path for future revisions.
+- Blend and FBX sources remain source-only until a Blender export step is available. They are not silently treated as runtime-ready 2D assets.
 
-The atlas is decoded into a browser image at runtime. The original source ZIP/3D files are not redistributed by this runtime bundle.
-
-## 3D source packs
-
-The supplied Blend, OBJ, FBX and STL files are intentionally not flattened into the 2D atlas. They require a separate 3D-to-sprite rendering pipeline before they can be represented faithfully in the current 2D renderer.
+The 3D layer is intentionally baked to sprites so the current lightweight 2D renderer does not need a runtime 3D engine.
