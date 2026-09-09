@@ -5,7 +5,9 @@
 (() => {
   const state=window.SIM_STATE, registry=window.EVERGLEN_RENDER;
   if(!state||!registry)return;
-  const canvas=document.getElementById('worldCanvas');
+  // art_2d.js hides worldCanvas and renders the visible world on world2dCanvas.
+  // Always target the visible canonical 2D surface when it exists.
+  const canvas=window.EVERGLEN_2D_ART?.canvas||document.getElementById('world2dCanvas')||document.getElementById('worldCanvas');
   const hash=(value,salt=0)=>{let h=2166136261>>>0;const text=`${value}|${salt}`;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0)/4294967296;};
   const militaryRoles=new Set(['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal','berserker','bodyguard']);
   const professionVisual={farmer:'farmer',miner:'blacksmith',woodcutter:'woodcutter',builder:'blacksmith',blacksmith:'blacksmith',armorer:'blacksmith',carpenter:'woodcutter',weaver:'farmer',baker:'farmer',cook:'farmer',healer:'apothecary',doctor:'apothecary',merchant:'banker',trader:'banker',shipwright:'woodcutter',sailor:'farmer',scholar:'apothecary',teacher:'apothecary',engineer:'blacksmith',architect:'blacksmith',hunter:'woodcutter',forager:'farmer',fisher:'farmer',thief:'banker',burglar:'banker',bandit:'blacksmith',smuggler:'banker',spy:'banker',cleric:'apothecary',druid:'apothecary',mage:'apothecary',wizard:'apothecary',alchemist:'apothecary',enchanter:'apothecary',mason:'blacksmith',herbalist:'apothecary',peddler:'banker',innkeeper:'farmer',shopkeeper:'banker',beastmaster:'woodcutter',farrier:'blacksmith',artist:'farmer',musician:'farmer',courier:'farmer',scribe:'apothecary',lawkeeper:'blacksmith',tax_collector:'banker',judge:'banker',librarian:'apothecary',furniture_maker:'woodcutter'};
