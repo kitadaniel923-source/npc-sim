@@ -1,6 +1,7 @@
 // Everglen NPC identity visuals.
 // Imported race/profession pixel assets are the canonical NPC body.
 // Imported equipment assets are layered on top when available.
+// Animation is driven by the simulation tick, so rendering stays timer-free.
 (() => {
   const state=window.SIM_STATE, registry=window.EVERGLEN_RENDER;
   if(!state||!registry)return;
@@ -18,11 +19,24 @@
     const exact=reg.sprites.find(s=>s.variant===0&&s.tags.includes(r)&&s.tags.includes(v));
     return exact||reg.sprites.find(s=>s.variant===0&&s.tags.includes(v)&&s.category==='character')||null;
   }
+  function isMoving(n){
+    const a=String(n.action||n.currentAction||n.behavior||n.state||'').toLowerCase();
+    return a.includes('walk')||a.includes('travel')||a.includes('move')||a.includes('explore')||a.includes('patrol')||a.includes('trade')||a.includes('migrate');
+  }
+  function animationFrame(n){
+    const phase=Math.floor((Number(state.tick)||0)/2)+Math.floor(hash(n.id||`${n.x}:${n.y}`,91)*4);
+    return phase&3;
+  }
   function drawAsset(ctx,n,sx,sy){
     const role=n.roleId||n.professionId||'farmer',visual=professionVisual[role]||'farmer',asset=findAsset(n.raceId,visual);
     if(!asset?.image)return false;
-    const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(role)?14:12,dh=base*1.08*scale,aspect=asset.w/Math.max(1,asset.h),profile=bodyProfile(n),dw=Math.max(4,dh*aspect*.88*profile.width);
-    ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(asset.image,asset.x,asset.y,asset.w,asset.h,Math.round(sx-dw/2),Math.round(sy-dh),Math.round(dw),Math.round(dh));ctx.restore();
+    const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(role)?14:12,dh=base*1.08*scale,aspect=asset.w/Math.max(1,asset.h),profile=bodyProfile(n),dw=Math.max(4,dh*aspect*.88*profile.width),moving=isMoving(n),frame=animationFrame(n);
+    const bob=moving?[0,-.35,0,.35][frame]:[0,-.18,0,.18][frame];
+    const stride=moving?[0,.35,0,-.35][frame]:0;
+    ctx.save();
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(asset.image,asset.x,asset.y,asset.w,asset.h,Math.round(sx-dw/2+stride),Math.round(sy-dh+bob),Math.round(dw),Math.round(dh));
+    ctx.restore();
     return true;
   }
   function equipmentClass(n){const role=n.roleId||n.professionId||'citizen';if(militaryRoles.has(role)||['guard','warrior','fighter','mercenary','raider'].includes(role))return'weapon';if(['miner','blacksmith','armorer','builder','mason','carpenter','engineer','architect','farrier','furniture_maker'].includes(role))return'axe';if(['farmer','rancher','woodcutter','hunter','forager','fisher','beastmaster'].includes(role))return'axe';if(['merchant','trader','peddler','shopkeeper','banker','innkeeper'].includes(role))return'armor';return'equipment';}
@@ -34,6 +48,6 @@
     (state.npcs||[]).forEach(n=>{if(!n.alive)return;const sx=n.x,sy=n.y;if(sx<-40||sx>360||sy<-40||sy>220)return;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(n.roleId)?14:12;if(drawAsset(ctx,n,sx,sy))drawEquipment(ctx,n,sx,sy,base*scale);drawMarker(ctx,n,sx,sy,base,scale);});
     ctx.restore();
   }
-  window.EVERGLEN_IDENTITY_VISUALS={bodyProfile,professionVisual,findAsset,equipmentClass};
+  window.EVERGLEN_IDENTITY_VISUALS={bodyProfile,professionVisual,findAsset,animationFrame,isMoving,equipmentClass};
   registry.register({name:'npc-identity-asset-fidelity',priority:285,draw});
 })();
