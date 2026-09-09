@@ -17,10 +17,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Run headless Electron simulation audit
         run: xvfb-run -a env ELECTRON_DISABLE_SANDBOX=1 EVERGLEN_RUNTIME_AUDIT=1 npm start
