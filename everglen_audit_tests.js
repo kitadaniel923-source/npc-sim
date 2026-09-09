@@ -2,8 +2,6 @@
 (() => {
   'use strict';
 
-  const state = window.SIM_STATE;
-
   function arr(v){ return Array.isArray(v) ? v : []; }
   function idOf(v){ return v == null ? null : String(v); }
   function alive(n){ return !!n && n.alive !== false; }
@@ -11,6 +9,7 @@
   function check(name, ok, detail=''){ return {name, ok:!!ok, detail:String(detail||'')}; }
 
   function test(){
+    const state = window.SIM_STATE;
     const npcs=arr(state?.npcs);
     const settlements=arr(state?.settlements);
     const kingdoms=arr(state?.kingdoms);
