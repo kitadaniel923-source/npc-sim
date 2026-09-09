@@ -23,6 +23,18 @@ function createWindow() {
     }
   });
 
+  if (process.env.EVERGLEN_RUNTIME_AUDIT === '1') {
+    win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      if (level >= 2) console.error(`EVERGLEN_RENDERER_CONSOLE level=${level} line=${line} source=${sourceId} message=${message}`);
+    });
+    win.webContents.on('render-process-gone', (_event, details) => {
+      console.error('EVERGLEN_RENDERER_GONE=' + JSON.stringify(details));
+    });
+    win.webContents.on('unresponsive', () => {
+      console.error('EVERGLEN_RENDERER_UNRESPONSIVE');
+    });
+  }
+
   win.once('ready-to-show', () => win.show());
   win.webContents.on('did-finish-load', () => {
     try {
@@ -59,7 +71,7 @@ function runRuntimeAudit(win) {
         if (!window.EVERGLEN_DEEP_AUDIT) return {ready:false, reason:'audit-not-loaded'};
         const state = window.SIM_STATE;
         if (!state) return {ready:false, reason:'state-not-created'};
-        if (typeof state.running !== 'boolean') state.running = true;
+        state.running = true;
         const npcs = Array.isArray(state.npcs) ? state.npcs.filter(n => n && n.alive) : [];
         const count = key => npcs.filter(n => {
           if (key === 'learning') return (n.learning?.attempts && Object.keys(n.learning.attempts).length > 0);
@@ -71,6 +83,7 @@ function runRuntimeAudit(win) {
           ready:true,
           running:!!state.running,
           tick:typeof state.tick === 'number' ? state.tick : null,
+          npcCount:npcs.length,
           report:window.EVERGLEN_DEEP_AUDIT.test(),
           live:{
             goals:count('longTermGoal'),
@@ -102,6 +115,7 @@ function runRuntimeAudit(win) {
       if (!startedSimulation) liveFailures.push('simulation never started');
       if (result.tick < targetTick) liveFailures.push(`tick did not reach ${targetTick}`);
       if (!result.running) liveFailures.push('simulation stopped before live audit');
+      if (result.npcCount === 0) liveFailures.push('no alive NPCs available');
       if ((live.goals || 0) === 0) liveFailures.push('no NPC goals created');
       if ((live.plans || 0) === 0) liveFailures.push('no NPC plans created');
       if ((live.decisions || 0) === 0) liveFailures.push('no NPC decisions created');
@@ -111,7 +125,7 @@ function runRuntimeAudit(win) {
       if ((live.consequences || 0) === 0) liveFailures.push('no NPC consequences recorded');
 
       console.log('EVERGLEN_RUNTIME_AUDIT_REPORT=' + JSON.stringify(result.report));
-      console.log('EVERGLEN_RUNTIME_AUDIT_LIVE=' + JSON.stringify({tick:result.tick,live,failures:liveFailures}));
+      console.log('EVERGLEN_RUNTIME_AUDIT_LIVE=' + JSON.stringify({tick:result.tick,npcCount:result.npcCount,live,failures:liveFailures}));
       console.log('EVERGLEN_RUNTIME_AUDIT_STATE=' + JSON.stringify({running:result.running,tick:result.tick}));
 
       if (result.report?.ok && liveFailures.length === 0) {
