@@ -11,13 +11,13 @@
   Promise.all([
     fetch(root+'terrain_manifest.json').then(r=>r.json()),fetch(root+'world_manifest.json').then(r=>r.json()),
     fetch(root+'characters_manifest.json').then(r=>r.json()),fetch(root+'structures_manifest.json').then(r=>r.json()),
-    fetch(root+'plants_manifest.json').then(r=>r.json()),fetch(root+'ruins_manifest.json').then(r=>r.json()),
+    fetch(root+'plants_manifest.json').then(r=>r.json()),fetch(root+'ruins_manifest.json').then(r=>r.json()),fetch(root+'race_prof_manifest.json').then(r=>r.json()),
     loadImage('terrain_atlas.webp'),loadImage('world_atlas.webp'),loadImage('characters_atlas.webp'),loadImage('structures_atlas.webp'),
-    loadImage('plants_atlas.png'),loadImage('ruins_atlas.png')
-  ]).then(([t,w,c,s,p,r,ti,wi,ci,si,pi,ri])=>{
+    loadImage('plants_atlas.png'),loadImage('ruins_atlas.png'),loadImage('race_prof_atlas.webp')
+  ]).then(([t,w,c,s,p,r,rp,ti,wi,ci,si,pi,ri,rpi])=>{
     manifest.terrain=t.atlas;manifest.world=w.atlas;manifest.characters=c.atlas;manifest.structures=s.atlas;
-    manifest.plants=p.atlas;manifest.ruins=r.atlas;
-    imgs.terrain=ti;imgs.world=wi;imgs.characters=ci;imgs.structures=si;imgs.plants=pi;imgs.ruins=ri;
+    manifest.plants=p.atlas;manifest.ruins=r.atlas;manifest.raceProf=rp.races;
+    imgs.terrain=ti;imgs.world=wi;imgs.characters=ci;imgs.structures=si;imgs.plants=pi;imgs.ruins=ri;imgs.raceProf=rpi;
     ready=true;window.EVERGLEN_ASSETS={manifest,images:imgs,ready:true};registry.run({state});
   }).catch(e=>console.error('Everglen asset load failed',e));
   const hash=(x,y,s=17)=>{const v=Math.sin(x*12.9898+y*78.233+s*37.719)*43758.5453;return v-Math.floor(v);};
@@ -44,7 +44,10 @@
 
   function animals(t){for(let i=0;i<18;i++){const x=-1050+hash(i,3)*2100,y=-700+hash(i,9)*1400;if(!landAt(x,y))continue;const[sx,sy]=toScreen(x,y,t);if(sx<-10||sx>330||sy<-10||sy>190)continue;const key=i%4===0?'fox':i%4===1?'boar':i%4===2?'sheep':'piglet',count=(key==='sheep'||key==='piglet')?3:4;if(!manifest.characters[key])continue;drawFrame('characters',key,count,Math.floor(state.tick/14+i)%count,sx-4,sy-4,8,8);}}
 
-  function npcs(t){state.npcs.forEach(n=>{if(!n.alive||!landAt(n.x,n.y))return;const[sx,sy]=toScreen(n.x,n.y,t);if(sx<-12||sx>332||sy<-12||sy>192)return;const military=['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal'].includes(n.roleId),moving=Array.isArray(n.path)&&n.path.length>1,dx=moving?n.path[n.path.length-1].x-n.x:0,dy=moving?n.path[n.path.length-1].y-n.y:1,side=Math.abs(dx)>Math.abs(dy),key=military?'knight_walk':side?'npc_walk_side':'npc_walk_down',count=military?8:6,r=manifest.characters[key];if(!r)return;const idx=Math.floor(state.tick/(moving?5:10)+String(n.id||'').length)%count,size=(military?16:12)*(n.visual?.bodyScale||1);drawFrame('characters',key,count,idx,sx-size/2,sy-size,size,size,side&&dx<0);if(n.id===state.selected){ctx.strokeStyle='#fff';ctx.strokeRect(sx-7,sy-size-3,14,size+6);}});}
+  const professionVisual={farmer:'farmer',miner:'blacksmith',woodcutter:'woodcutter',builder:'blacksmith',blacksmith:'blacksmith',armorer:'blacksmith',carpenter:'woodcutter',weaver:'farmer',baker:'farmer',cook:'farmer',healer:'apothecary',doctor:'apothecary',merchant:'banker',trader:'banker',shipwright:'woodcutter',sailor:'farmer',scholar:'apothecary',teacher:'apothecary',engineer:'blacksmith',architect:'blacksmith',hunter:'woodcutter',forager:'farmer',fisher:'farmer',thief:'banker',burglar:'banker',bandit:'blacksmith',smuggler:'banker',spy:'banker',cleric:'apothecary',druid:'apothecary',mage:'apothecary',wizard:'apothecary',alchemist:'apothecary',enchanter:'apothecary',mason:'blacksmith',herbalist:'apothecary',peddler:'banker',innkeeper:'farmer',shopkeeper:'banker',beastmaster:'woodcutter',farrier:'blacksmith',artist:'farmer',musician:'farmer',courier:'farmer',scribe:'apothecary',lawkeeper:'blacksmith',tax_collector:'banker',judge:'banker',librarian:'apothecary',furniture_maker:'woodcutter'};
+  function raceProfessionSprite(n,sx,sy,size){const race=n.raceId,visual=professionVisual[n.roleId]||professionVisual[n.professionId]||'farmer';const r=manifest.raceProf?.[race]?.[visual];if(!r||!imgs.raceProf)return false;const scale=(n.visual?.bodyScale||1);const dw=size*scale,dh=size*scale;ctx.drawImage(imgs.raceProf,r.x,r.y,r.w,r.h,sx-dw/2,sy-dh,dw,dh);return true;}
+
+  function npcs(t){state.npcs.forEach(n=>{if(!n.alive||!landAt(n.x,n.y))return;const[sx,sy]=toScreen(n.x,n.y,t);if(sx<-12||sx>332||sy<-12||sy>192)return;const military=['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal'].includes(n.roleId),moving=Array.isArray(n.path)&&n.path.length>1,dx=moving?n.path[n.path.length-1].x-n.x:0,dy=moving?n.path[n.path.length-1].y-n.y:1,side=Math.abs(dx)>Math.abs(dy),key=military?'knight_walk':side?'npc_walk_side':'npc_walk_down',count=military?8:6,r=manifest.characters[key];if(!r)return;const idx=Math.floor(state.tick/(moving?5:10)+String(n.id||'').length)%count,size=(military?16:12)*(n.visual?.bodyScale||1);const usedRaceArt=!military&&raceProfessionSprite(n,sx,sy,size);if(!usedRaceArt)drawFrame('characters',key,count,idx,sx-size/2,sy-size,size,size,side&&dx<0);if(n.id===state.selected){ctx.strokeStyle='#fff';ctx.strokeRect(sx-7,sy-size-3,14,size+6);}});}
 
   function draw(){if(!ready)return;const t=transform();ctx.clearRect(0,0,320,180);terrain(t);nature(t);crops(t);ruins(t);boats(t);settlements(t);animals(t);npcs(t);ctx.font='7px monospace';ctx.fillStyle='#f2f0dc';ctx.fillText(`EVERGLEN  YEAR ${state.year||1}`,6,8);ctx.fillStyle='#e6c35d';ctx.fillText(`${String(state.season||'Spring').toUpperCase()}  •  ${state.npcs.filter(n=>n.alive).length}`,6,16);if(state.war){ctx.fillStyle='#f2f0dc';ctx.fillText('⚔ WAR',270,9);}if(state.godMode){ctx.fillStyle='#e6c35d';ctx.fillText('GOD MODE',6,174);}}
   window.EVERGLEN_ASSET_RENDERER={draw,ready:()=>ready};
