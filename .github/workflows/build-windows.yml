@@ -33,6 +33,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: everglen-windows
-          path: dist/*.{exe,yml,blockmap}
+          path: |
+            dist/*.exe
+            dist/*.blockmap
           if-no-files-found: error
           retention-days: 30
