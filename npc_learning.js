@@ -1,11 +1,12 @@
 // Adaptive learning layer for Phase 1 AI.
-// Converts experience into persistent skill, preference, trust and risk adaptation.
+// Converts experience into persistent skill, preference, trust, risk and causal adaptation.
 (() => {
   const state = window.SIM_STATE;
   if (!state) return;
 
   const personality = () => window.NPC_PERSONALITY;
   const memory = () => window.NPC_MEMORY;
+  const causality = () => window.NPC_DEEP_CAUSALITY;
   const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
   const alive = () => (state.npcs || []).filter(n => n.alive);
 
@@ -17,7 +18,7 @@
   function ensure(n) {
     n.learning = n.learning || {
       attempts:{}, successes:{}, failures:{}, expertise:{}, preferences:{},
-      lastLesson:null, adaptation:0, policies:{}, failureStreaks:{}, successStreaks:{}
+      lastLesson:null, adaptation:0, policies:{}, causalWeights:{}, failureStreaks:{}, successStreaks:{}
     };
     n.learning.attempts ||= {};
     n.learning.successes ||= {};
@@ -25,6 +26,7 @@
     n.learning.expertise ||= {};
     n.learning.preferences ||= {};
     n.learning.policies ||= {};
+    n.learning.causalWeights ||= {};
     n.learning.failureStreaks ||= {};
     n.learning.successStreaks ||= {};
     return n.learning;
@@ -50,7 +52,6 @@
     const lesson = Math.min(5, intensity * (success ? 1 : .8));
     l.expertise[a] = clamp((l.expertise[a] || 0) + lesson, 0, 100);
 
-    // Learned policy is bounded so one event cannot permanently dominate behavior.
     const previousPolicy = l.policies[a] ?? 50;
     const outcomeShift = success ? lesson * 1.25 : -lesson * 1.55;
     const streakShift = success
@@ -65,7 +66,8 @@
     l.adaptation = clamp((l.adaptation || 0) + lesson*.18, 0, 100);
     l.lastLesson = {
       tick:state.tick, action:a, success, reason, successRate,
-      policy:l.policies[a], streak:success ? l.successStreaks[a] : l.failureStreaks[a]
+      policy:l.policies[a], causal:l.causalWeights[a] ?? 50,
+      streak:success ? l.successStreaks[a] : l.failureStreaks[a]
     };
 
     const growth = ACTIONS[a];
@@ -75,14 +77,7 @@
 
     if (!success && memory()?.remember && attempts >= 2) {
       const text = reason || `My attempt to ${a} failed.`;
-      memory().remember(
-        n,
-        `${text} I should adapt next time.`,
-        'learning',
-        Math.min(3.5, 1+attempts*.12),
-        null,
-        'fear'
-      );
+      memory().remember(n, `${text} I should adapt next time.`, 'learning', Math.min(3.5, 1+attempts*.12), null, 'fear');
     }
     return l.lastLesson;
   }
@@ -92,15 +87,18 @@
     const expertise = l.expertise[action] || 0;
     const preference = l.preferences[action] ?? 50;
     const policy = l.policies[action] ?? 50;
+    const causal = l.causalWeights[action] ?? 50;
     const failures = l.failures[action] || 0;
     const successes = l.successes[action] || 0;
     const failureStreak = l.failureStreaks[action] || 0;
     const successStreak = l.successStreaks[action] || 0;
+    const causalBridge = causality()?.actionModifier ? causality().actionModifier(n, action) : 0;
 
-    // This is the bridge from experience into future decision scoring.
     return (expertise*.11)
       + ((preference-50)*.12)
       + ((policy-50)*.22)
+      + ((causal-50)*.18)
+      + causalBridge
       - Math.min(10, failures*.16)
       + Math.min(6, successes*.08)
       - Math.min(4, failureStreak*.35)
@@ -121,15 +119,9 @@
     const memories = (n.memories || []).filter(m => (m.importance || 0) >= 2.5).slice(0, 12);
     memories.forEach(m => {
       const text = String(m.text || '').toLowerCase();
-      if (m.type === 'war' || m.type === 'disaster' || text.includes('danger')) {
-        l.riskTolerance = clamp((l.riskTolerance ?? 50) - .04, 0, 100);
-      }
-      if (m.type === 'relationship' && m.emotion === 'trust') {
-        l.socialConfidence = clamp((l.socialConfidence ?? 50) + .025, 0, 100);
-      }
-      if (m.type === 'betrayal' || m.emotion === 'anger') {
-        l.trustCaution = clamp((l.trustCaution ?? 50) + .035, 0, 100);
-      }
+      if (m.type === 'war' || m.type === 'disaster' || text.includes('danger')) l.riskTolerance = clamp((l.riskTolerance ?? 50) - .04, 0, 100);
+      if (m.type === 'relationship' && m.emotion === 'trust') l.socialConfidence = clamp((l.socialConfidence ?? 50) + .025, 0, 100);
+      if (m.type === 'betrayal' || m.emotion === 'anger') l.trustCaution = clamp((l.trustCaution ?? 50) + .035, 0, 100);
     });
   }
 
