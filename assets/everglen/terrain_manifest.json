@@ -1,0 +1,1 @@
+{"version":1,"note":"Selected runtime terrain atlas. Four base biome tiles are sourced from the supplied Overworld Biomes pack and preserved at nearest-neighbor pixel scale.","atlas":{"grass":{"x":0,"y":0,"w":16,"h":16},"forest":{"x":17,"y":0,"w":16,"h":16},"desert":{"x":34,"y":0,"w":16,"h":16},"water":{"x":51,"y":0,"w":16,"h":16}}}
