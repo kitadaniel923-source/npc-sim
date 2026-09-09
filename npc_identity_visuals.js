@@ -1,53 +1,28 @@
 // Everglen NPC identity visuals.
-// Imported race/profession pixel assets are the canonical NPC body.
-// Imported equipment assets are layered on top when available.
-// Animation is driven by the simulation tick, so rendering stays timer-free.
+// Pixel Crawler Body_A is the primary animated NPC body; the curated race/profession
+// atlas remains available as a fallback/identity layer.
+// Visual-only: never mutates simulation state.
 (() => {
   const state=window.SIM_STATE, registry=window.EVERGLEN_RENDER;
   if(!state||!registry)return;
-  window.EVERGLEN_CANONICAL_ASSET_RENDER=true;
   const canvas=window.EVERGLEN_2D_ART?.canvas||document.getElementById('world2dCanvas')||document.getElementById('worldCanvas');
   const hash=(value,salt=0)=>{let h=2166136261>>>0;const text=`${value}|${salt}`;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0)/4294967296;};
-  const militaryRoles=new Set(['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal','berserker','bodyguard']);
+  const militaryRoles=new Set(['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal','berserker','bodyguard','guard','warrior','fighter','mercenary','raider']);
   const professionVisual={farmer:'farmer',miner:'blacksmith',woodcutter:'woodcutter',builder:'blacksmith',blacksmith:'blacksmith',armorer:'blacksmith',carpenter:'woodcutter',weaver:'farmer',baker:'farmer',cook:'farmer',healer:'apothecary',doctor:'apothecary',merchant:'banker',trader:'banker',shipwright:'woodcutter',sailor:'farmer',scholar:'apothecary',teacher:'apothecary',engineer:'blacksmith',architect:'blacksmith',hunter:'woodcutter',forager:'farmer',fisher:'farmer',thief:'banker',burglar:'banker',bandit:'blacksmith',smuggler:'banker',spy:'banker',cleric:'apothecary',druid:'apothecary',mage:'apothecary',wizard:'apothecary',alchemist:'apothecary',enchanter:'apothecary',mason:'blacksmith',herbalist:'apothecary',peddler:'banker',innkeeper:'farmer',shopkeeper:'banker',beastmaster:'woodcutter',farrier:'blacksmith',artist:'farmer',musician:'farmer',courier:'farmer',scribe:'apothecary',lawkeeper:'blacksmith',tax_collector:'banker',judge:'banker',librarian:'apothecary',furniture_maker:'woodcutter'};
   const ageScale=n=>window.EVERGLEN_AGE_VISUALS?.visualScale?.(window.EVERGLEN_AGE_VISUALS.ageBand?.(n.age))||1;
   const bodyProfile=n=>{const g=String(n.gender??n.sex??'').toLowerCase(),female=g==='f'||g==='female'||g==='woman';return{gender:female?'female':'male',width:(.94+hash(n.id||`${n.x}:${n.y}`,72)*.12)*(female?.97:1.02)};};
-  function findAsset(race,visual){
-    const reg=window.EVERGLEN_ASSET_REGISTRY;
-    if(!reg?.ready)return null;
-    const r=String(race||'human').toLowerCase(),v=String(visual||'farmer').toLowerCase();
-    const exact=reg.sprites.find(s=>s.variant===0&&s.tags.includes(r)&&s.tags.includes(v));
-    return exact||reg.sprites.find(s=>s.variant===0&&s.tags.includes(v)&&s.category==='character')||null;
-  }
-  function isMoving(n){
-    const a=String(n.action||n.currentAction||n.behavior||n.state||'').toLowerCase();
-    return a.includes('walk')||a.includes('travel')||a.includes('move')||a.includes('explore')||a.includes('patrol')||a.includes('trade')||a.includes('migrate');
-  }
-  function animationFrame(n){
-    const phase=Math.floor((Number(state.tick)||0)/2)+Math.floor(hash(n.id||`${n.x}:${n.y}`,91)*4);
-    return phase&3;
-  }
-  function drawAsset(ctx,n,sx,sy){
-    const role=n.roleId||n.professionId||'farmer',visual=professionVisual[role]||'farmer',asset=findAsset(n.raceId,visual);
-    if(!asset?.image)return false;
-    const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(role)?14:12,dh=base*1.08*scale,aspect=asset.w/Math.max(1,asset.h),profile=bodyProfile(n),dw=Math.max(4,dh*aspect*.88*profile.width),moving=isMoving(n),frame=animationFrame(n);
-    const bob=moving?[0,-.35,0,.35][frame]:[0,-.18,0,.18][frame];
-    const stride=moving?[0,.35,0,-.35][frame]:0;
-    ctx.save();
-    ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(asset.image,asset.x,asset.y,asset.w,asset.h,Math.round(sx-dw/2+stride),Math.round(sy-dh+bob),Math.round(dw),Math.round(dh));
-    ctx.restore();
-    return true;
-  }
-  function equipmentClass(n){const role=n.roleId||n.professionId||'citizen';if(militaryRoles.has(role)||['guard','warrior','fighter','mercenary','raider'].includes(role))return'weapon';if(['miner','blacksmith','armorer','builder','mason','carpenter','engineer','architect','farrier','furniture_maker'].includes(role))return'axe';if(['farmer','rancher','woodcutter','hunter','forager','fisher','beastmaster'].includes(role))return'axe';if(['merchant','trader','peddler','shopkeeper','banker','innkeeper'].includes(role))return'armor';return'equipment';}
-  function drawEquipment(ctx,n,sx,sy,size){const reg=window.EVERGLEN_ASSET_REGISTRY;if(!reg?.ready)return false;const seed=Math.floor(hash(n.id||`${n.x}:${n.y}`,81)*100000),pick=reg.pick([equipmentClass(n),'equipment'],seed);if(!pick)return false;const h=Math.max(8,size*1.15),w=h*.72,ox=militaryRoles.has(n.roleId)?size*.52:size*.45,oy=militaryRoles.has(n.roleId)?size*.54:size*.42;return reg.drawSprite(ctx,pick,sx+ox,sy-oy,w,h,false);}
+  const pc={ready:false,loading:false,error:null,image:null,manifest:null};
+  const PC_ROOT='assets/everglen/';
+  async function loadPixelCrawler(){if(pc.loading||pc.ready)return;pc.loading=true;try{const [a,m]=await Promise.all([fetch(PC_ROOT+'pixel_crawler_runtime_atlas.b64'),fetch(PC_ROOT+'pixel_crawler_runtime_manifest.json')]);if(!a.ok||!m.ok)throw new Error('Pixel Crawler runtime files unavailable');const text=(await a.text()).replace(/\s+/g,'').replace(/[^A-Za-z0-9+/=]/g,'');const raw=atob(text),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);const url=URL.createObjectURL(new Blob([bytes],{type:'image/png'})),image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;image.src=url});pc.image=image;pc.manifest=await m.json();pc.ready=true;window.EVERGLEN_PIXEL_CRAWLER={ready:true,frame:{w:32,h:32},animations:Object.keys(pc.manifest.animations||{}),source:'Pixel Crawler Free Pack 2.11'};}catch(e){pc.error=String(e?.message||e);window.EVERGLEN_PIXEL_CRAWLER={ready:false,error:pc.error};console.warn('Pixel Crawler animation atlas unavailable:',pc.error);}finally{pc.loading=false;}}
+  loadPixelCrawler();
+  const visualHistory=new Map();
+  function movementState(n){const id=String(n.id??`${n.x}:${n.y}`),previous=visualHistory.get(id),x=Number(n.x)||0,y=Number(n.y)||0;let dx=0,dy=0;if(previous){dx=x-previous.x;dy=y-previous.y;}const moving=Math.abs(dx)+Math.abs(dy)>0.015;let direction=previous?.direction||'down';if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>0.01)direction='side';else if(Math.abs(dy)>0.01)direction=dy<0?'up':'down';visualHistory.set(id,{x,y,direction});return{moving,direction,dx,dy};}
+  function roleAnimation(n,move){const role=String(n.roleId||n.professionId||'').toLowerCase(),action=String(n.lastAction||n.action||'').toLowerCase();if(role==='fisher'||action.includes('fish'))return'fishing';if(['farmer','rancher','gardener'].includes(role)||action.includes('water'))return'watering';if(['miner','blacksmith','mason'].includes(role)||action.includes('mine')||action.includes('crush'))return'crush';if(['woodcutter','hunter'].includes(role)||action.includes('chop')||action.includes('collect'))return'collect';if(militaryRoles.has(role)||action.includes('attack')||action.includes('confront')||action.includes('fight'))return(action.includes('pierce')||['archer','spearman'].includes(role))?'pierce':'slice';if(action.includes('hit'))return'hit';return move.moving?'walk':'idle';}
+  function pixelCrawlerFrame(n,now){if(!pc.ready)return null;const move=movementState(n),available=pc.manifest.animations||{};let animation=roleAnimation(n,move),dir=move.direction,key=`${animation}|${dir}`;if(animation==='pierce'&&dir==='up')key='pierce|top';if(!available[key]){animation=move.moving?'walk':'idle';dir=move.direction;key=`${animation}|${dir}`;}const sheet=available[key]||available['idle|down'];if(!sheet)return null;const count=Math.max(1,sheet.frames||1),fps=animation==='idle'?3:8,frame=Math.floor(now/1000*fps+hash(n.id||`${n.x}:${n.y}`,11)*count)%count;return{sheet,frame,move,animation};}
+  function drawPixelCrawler(ctx,n,sx,sy,now){const f=pixelCrawlerFrame(n,now);if(!f)return false;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(String(n.roleId||'').toLowerCase())?38:36,w=base*scale,h=base*scale,m=f.sheet,srcX=m.x+f.frame*m.frameW,srcY=m.y;ctx.save();ctx.imageSmoothingEnabled=false;if(f.move.direction==='side'&&f.move.dx<0){ctx.translate(Math.round(sx+w/2),Math.round(sy));ctx.scale(-1,1);ctx.drawImage(pc.image,srcX,srcY,m.frameW,m.frameH,Math.round(-w/2),Math.round(-h),Math.round(w),Math.round(h));}else{ctx.drawImage(pc.image,srcX,srcY,m.frameW,m.frameH,Math.round(sx-w/2),Math.round(sy-h),Math.round(w),Math.round(h));}ctx.restore();return true;}
+  function findAsset(race,visual){const reg=window.EVERGLEN_ASSET_REGISTRY;if(!reg?.ready)return null;const r=String(race||'human').toLowerCase(),v=String(visual||'farmer').toLowerCase();return reg.sprites.find(s=>s.variant===0&&s.tags.includes(r)&&s.tags.includes(v))||reg.sprites.find(s=>s.variant===0&&s.tags.includes(v)&&s.category==='character')||null;}
+  function drawLegacyAsset(ctx,n,sx,sy){const role=n.roleId||n.professionId||'farmer',visual=professionVisual[role]||'farmer',asset=findAsset(n.raceId,visual);if(!asset?.image)return false;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(String(role).toLowerCase())?14:12,dh=base*1.08*scale,aspect=asset.w/Math.max(1,asset.h),profile=bodyProfile(n),dw=Math.max(4,dh*aspect*.88*profile.width);ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(asset.image,asset.x,asset.y,asset.w,asset.h,Math.round(sx-dw/2),Math.round(sy-dh),Math.round(dw),Math.round(dh));ctx.restore();return true;}
   function drawMarker(ctx,n,sx,sy,base,scale){if(n.id!==state.selected)return;ctx.save();ctx.strokeStyle='#fff';ctx.globalAlpha=.95;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(sx,sy-base*.45,base*.8*scale,0,Math.PI*2);ctx.stroke();ctx.restore();}
-  function draw(){
-    if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx||!state.camera)return;const z=state.camera.zoom||1,cx=160-state.camera.x*z/8,cy=90-state.camera.y*z/8;
-    ctx.save();ctx.translate(cx,cy);ctx.scale(z/8,z/8);
-    (state.npcs||[]).forEach(n=>{if(!n.alive)return;const sx=n.x,sy=n.y;if(sx<-40||sx>360||sy<-40||sy>220)return;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(n.roleId)?14:12;if(drawAsset(ctx,n,sx,sy))drawEquipment(ctx,n,sx,sy,base*scale);drawMarker(ctx,n,sx,sy,base,scale);});
-    ctx.restore();
-  }
-  window.EVERGLEN_IDENTITY_VISUALS={bodyProfile,professionVisual,findAsset,animationFrame,isMoving,equipmentClass};
-  registry.register({name:'npc-identity-asset-fidelity',priority:285,draw});
+  function draw(){if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx||!state.camera)return;const z=state.camera.zoom||1,cx=160-state.camera.x*z/8,cy=90-state.camera.y*z/8,now=performance.now();ctx.save();ctx.translate(cx,cy);ctx.scale(z/8,z/8);(state.npcs||[]).forEach(n=>{if(!n.alive)return;const sx=n.x,sy=n.y;if(sx<-40||sx>360||sy<-40||sy>220)return;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(String(n.roleId||'').toLowerCase())?38:36;const drawn=drawPixelCrawler(ctx,n,sx,sy,now);if(!drawn)drawLegacyAsset(ctx,n,sx,sy);drawMarker(ctx,n,sx,sy,base,scale);});ctx.restore();}
+  window.EVERGLEN_CANONICAL_ASSET_RENDER=true;window.EVERGLEN_IDENTITY_VISUALS={bodyProfile,professionVisual,findAsset,roleAnimation,pixelCrawlerFrame};registry.register({name:'npc-identity-pixel-crawler',priority:290,draw});
 })();
