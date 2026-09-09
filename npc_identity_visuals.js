@@ -5,8 +5,10 @@
 (() => {
   const state=window.SIM_STATE, registry=window.EVERGLEN_RENDER;
   if(!state||!registry)return;
-  // art_2d.js hides worldCanvas and renders the visible world on world2dCanvas.
-  // Always target the visible canonical 2D surface when it exists.
+  // This stage is the canonical NPC body renderer. Legacy procedural NPC stages
+  // are disabled by render_registry so they cannot stack a second body underneath.
+  window.EVERGLEN_CANONICAL_ASSET_RENDER=true;
+  // art_2d.js hides worldCanvas and creates the visible pixel-art surface.
   const canvas=window.EVERGLEN_2D_ART?.canvas||document.getElementById('world2dCanvas')||document.getElementById('worldCanvas');
   const hash=(value,salt=0)=>{let h=2166136261>>>0;const text=`${value}|${salt}`;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0)/4294967296;};
   const militaryRoles=new Set(['militia','soldier','archer','spearman','cavalry','knight','paladin','captain','general','marshal','berserker','bodyguard']);
@@ -16,7 +18,7 @@
   function drawAsset(ctx,n,sx,sy){const assets=window.EVERGLEN_ASSETS;if(!assets?.ready||!assets.images?.raceProf)return false;const race=n.raceId,visual=professionVisual[n.roleId]||professionVisual[n.professionId]||'farmer',r=assets.manifest?.raceProf?.[race]?.[visual];if(!r)return false;const base=militaryRoles.has(n.roleId)?14:12,scale=(n.visual?.bodyScale||1)*ageScale(n),dh=base*1.08*scale,aspect=r.w/Math.max(1,r.h),profile=bodyProfile(n),dw=Math.max(4,dh*aspect*.88*profile.width);ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(assets.images.raceProf,r.x,r.y,r.w,r.h,Math.round(sx-dw/2),Math.round(sy-dh),Math.round(dw),Math.round(dh));ctx.restore();return true;}
   function equipmentClass(n){const role=n.roleId||n.professionId||'citizen';if(militaryRoles.has(role)||['guard','warrior','fighter','mercenary','raider'].includes(role))return'weapon';if(['miner','blacksmith','armorer','builder','mason','carpenter','engineer','architect','farrier','furniture_maker'].includes(role))return'axe';if(['farmer','rancher','woodcutter','hunter','forager','fisher','beastmaster'].includes(role))return'axe';if(['merchant','trader','peddler','shopkeeper','banker','innkeeper'].includes(role))return'armor';return'equipment';}
   function drawEquipment(ctx,n,sx,sy,size){const assetRegistry=window.EVERGLEN_ASSET_REGISTRY;if(!assetRegistry?.ready)return false;const seed=Math.floor(hash(n.id||`${n.x}:${n.y}`,81)*100000);const role=n.roleId||n.professionId||'citizen';const category=equipmentClass(n);const pick=assetRegistry.pick([category,'equipment'],seed);if(!pick)return false;const h=Math.max(8,size*1.15),w=h*.72;const offsetX=militaryRoles.has(role)?size*.52:size*.45;const offsetY=militaryRoles.has(role)?size*.54:size*.42;return assetRegistry.drawSprite(ctx,pick,sx+offsetX,sy-offsetY,w,h,false);}
-  function draw(){if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx||!state.camera)return;const z=state.camera.zoom||1,cx=160-state.camera.x*z/8,cy=90-state.camera.y*z/8;(state.npcs||[]).forEach(n=>{if(!n.alive)return;const sx=cx+n.x*z/8,sy=cy+n.y*z/8;if(sx<-16||sx>336||sy<-16||sy>196)return;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(n.roleId)?14:12;drawAsset(ctx,n,sx,sy);drawEquipment(ctx,n,sx,sy,base*scale);});}
+  function draw(){if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx||!state.camera)return;const z=state.camera.zoom||1,cx=160-state.camera.x*z/8,cy=90-state.camera.y*z/8;(state.npcs||[]).forEach(n=>{if(!n.alive)return;const sx=cx+n.x*z/8,sy=cy+n.y*z/8;if(sx<-16||sx>336||sy<-16||sy>196)return;const scale=(n.visual?.bodyScale||1)*ageScale(n),base=militaryRoles.has(n.roleId)?14:12;const drawn=drawAsset(ctx,n,sx,sy);if(drawn)drawEquipment(ctx,n,sx,sy,base*scale);});}
   window.EVERGLEN_IDENTITY_VISUALS={bodyProfile,professionVisual,equipmentClass};
   registry.register({name:'npc-identity-asset-fidelity',priority:285,draw});
 })();
