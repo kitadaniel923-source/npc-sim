@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "type": "3d-baked-runtime-atlas",
+  "image": "medieval_3d_atlas.webp",
+  "cell": [64, 64],
+  "frames": 8,
+  "source": [
+    "Mediavel Pack(1).obj",
+    "Mediavel Pack STL(1).zip"
+  ],
+  "notes": "Build-time orthographic sprite bake from the supplied 3D medieval pack. Eight deterministic view variants are stored as a compact runtime atlas."
+}
