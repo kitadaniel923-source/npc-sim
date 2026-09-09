@@ -1,5 +1,5 @@
-// Uses the supplemental atlas in-world. The selector is deterministic, contextual,
-// and rotates through the entire imported sprite registry over simulation time.
+// Uses the supplemental mega atlas in-world. Selection is deterministic, contextual,
+// and the catalog sweep guarantees every imported source sprite is reachable.
 (() => {
   const state=window.SIM_STATE, art=window.EVERGLEN_2D_ART, registry=window.EVERGLEN_RENDER;
   const assets=window.EVERGLEN_ASSET_REGISTRY;
@@ -39,10 +39,15 @@
       const [sx,sy]=toScreen(x,y); if(sx<-30||sx>350||sy<-20||sy>200)continue;
       assets.draw(ctx,['boat','ship','raft','vessel','dock'],sx-8,sy-5,16,10,state.tick+i*101);
     }
-    if(state.tick%12===0&&assets.sprites.length){
-      const i=Math.floor(state.tick/12)%assets.sprites.length;
-      const target=settlements[i%Math.max(1,settlements.length)];
-      if(target){const [sx,sy]=toScreen(target.x,target.y);assets.draw(ctx,[],sx-5,sy-18,10,10,i);}
+    // Slow catalog sweep: one source sprite every 12 ticks, while the normal
+    // contextual renderer continues to choose appropriate variants for the world.
+    if(state.tick%12===0&&assets.stats.sourceSprites){
+      const index=Math.floor(state.tick/12)%assets.stats.sourceSprites;
+      const target=settlements[index%Math.max(1,settlements.length)];
+      if(target){
+        const [sx,sy]=toScreen(target.x,target.y);
+        assets.drawCatalog(ctx,sx-5,sy-18,10,10,index,hash(index,3,17)>.5);
+      }
     }
   }
   window.EVERGLEN_ASSET_INTEGRATION={draw};
