@@ -1,0 +1,3 @@
+MysticOres source pack supplied by the project owner. Runtime manifest is at ores_manifest.json. The original ZIP contains 12 32x32 ore/ingot icons: Diamond, Emerald, Amethyst Shard, Copper Ingot, Gold Ingot, Iron Ingot, Lapis, Coal, Iron Ore, Gold Ore, Redstone, Copper Ore.
+
+These resources are intended for future mining, resource-node and inventory visuals. Original pack licensing should be verified before public redistribution.
