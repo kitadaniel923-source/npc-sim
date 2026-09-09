@@ -14,7 +14,8 @@
     ['geopolitics',()=>!!window.PLAYER_GEOPOLITICS],
     ['development',()=>!!window.EVERGLEN_DEVELOPMENT],
     ['demography',()=>!!window.EVERGLEN_DEMOGRAPHY],
-    ['regional economy',()=>!!window.EVERGLEN_REGIONAL_ECONOMY]
+    ['regional economy',()=>!!window.EVERGLEN_REGIONAL_ECONOMY],
+    ['phase 1-9 closure',()=>!!window.EVERGLEN_PHASE1_9]
   ];
   function test(){
     const results=[];
@@ -32,12 +33,16 @@
     results.push({name:'world has population',ok:alive.length>0,detail:String(alive.length)});
     results.push({name:'world has settlement',ok:settlements.length>0,detail:String(settlements.length)});
     results.push({name:'world has kingdom',ok:kingdoms.length>0,detail:String(kingdoms.length)});
+    const closure=window.EVERGLEN_PHASE1_9?.phaseStatus?.();
+    results.push({name:'phase 1-9 runtime gate',ok:closure?.status==='ready',detail:closure?`repairs ${closure.repairs||0}, invalids ${closure.invalids||0}`:'closure not initialized'});
+    const perf=window.EVERGLEN_PERF?.perf;
+    results.push({name:'performance telemetry',ok:!!perf,detail:perf?`avg ${Number(perf.avgMs||0).toFixed(2)}ms / max ${Number(perf.maxMs||0).toFixed(2)}ms`:''});
     const hardFailures=results.filter(r=>!r.ok);
-    return {ok:hardFailures.length===0,results,summary:{tick:state?.tick??null,year:state?.year??null,population:alive.length,settlements:settlements.length,kingdoms:kingdoms.length,systems:names.length}};
+    return {ok:hardFailures.length===0,results,summary:{tick:state?.tick??null,year:state?.year??null,population:alive.length,settlements:settlements.length,kingdoms:kingdoms.length,systems:names.length,phase1_9:closure||null}};
   }
   function renderReport(report){
     const old=document.getElementById('everglenTestOverlay');if(old)old.remove();
-    const panel=document.createElement('div');panel.id='everglenTestOverlay';panel.style.cssText='position:fixed;inset:18px auto auto 18px;z-index:99999;max-width:460px;background:rgba(12,16,22,.97);color:#eef2f7;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:14px 16px;font:12px/1.45 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)';
+    const panel=document.createElement('div');panel.id='everglenTestOverlay';panel.style.cssText='position:fixed;inset:18px auto auto 18px;z-index:99999;max-width:520px;background:rgba(12,16,22,.97);color:#eef2f7;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:14px 16px;font:12px/1.45 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)';
     const rows=report.results.map(r=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0"><span>${r.name}</span><b style="color:${r.ok?'#8fe39b':'#ff8f8f'}">${r.ok?'PASS':'FAIL'}${r.detail?` · ${r.detail}`:''}</b></div>`).join('');
     panel.innerHTML=`<div style="font-weight:800;font-size:15px;margin-bottom:6px">Everglen 1.0 Readiness</div><div style="margin-bottom:8px">${report.ok?'READY FOR PLAYTEST':'NOT READY'} · Year ${report.summary.year??'?'} · Tick ${report.summary.tick??'?'}</div>${rows}<div style="margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)">Population ${report.summary.population} · Settlements ${report.summary.settlements} · Kingdoms ${report.summary.kingdoms} · Systems ${report.summary.systems}</div>`;
     document.body.appendChild(panel);
