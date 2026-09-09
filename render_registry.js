@@ -23,6 +23,9 @@
   const run = context => {
     const payload = context || { state:window.SIM_STATE };
     for (const r of renderers.slice()) {
+      // Once the imported-asset renderer is active, the old procedural world
+      // and NPC stages must not paint a second copy over the canonical assets.
+      if (window.EVERGLEN_CANONICAL_ASSET_RENDER && (r.name === 'art-2d' || r.name === 'npc-visuals')) continue;
       try { r.draw(payload); }
       catch (error) { console.error(`Everglen renderer '${r.name}' failed`, error); }
     }
