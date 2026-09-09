@@ -9,24 +9,24 @@
   const clamp = (v,a=0,b=100) => Math.max(a,Math.min(b,v));
   const alive = () => (state.npcs || []).filter(n => n.alive);
 
-  // These are the canonical personality dimensions exposed by npc_personality.js.
-  // Keep learning growth aligned with those keys so experience actually changes traits.
   const ACTIONS = {
     work:'discipline', wealth:'ambition', train:'courage', study:'curiosity', explore:'curiosity',
-    socialize:'sociability', belong:'loyalty', govern:'ambition', confront:'aggression',
-    safety:'risk'
+    socialize:'sociability', belong:'loyalty', govern:'ambition', confront:'aggression', safety:'risk'
   };
 
   function ensure(n) {
     n.learning = n.learning || {
       attempts:{}, successes:{}, failures:{}, expertise:{}, preferences:{},
-      lastLesson:null, adaptation:0
+      lastLesson:null, adaptation:0, policies:{}, failureStreaks:{}, successStreaks:{}
     };
     n.learning.attempts ||= {};
     n.learning.successes ||= {};
     n.learning.failures ||= {};
     n.learning.expertise ||= {};
     n.learning.preferences ||= {};
+    n.learning.policies ||= {};
+    n.learning.failureStreaks ||= {};
+    n.learning.successStreaks ||= {};
     return n.learning;
   }
 
@@ -35,23 +35,54 @@
     const l = ensure(n);
     const a = String(action);
     l.attempts[a] = (l.attempts[a] || 0) + 1;
-    if (success) l.successes[a] = (l.successes[a] || 0) + 1;
-    else l.failures[a] = (l.failures[a] || 0) + 1;
+    if (success) {
+      l.successes[a] = (l.successes[a] || 0) + 1;
+      l.successStreaks[a] = (l.successStreaks[a] || 0) + 1;
+      l.failureStreaks[a] = 0;
+    } else {
+      l.failures[a] = (l.failures[a] || 0) + 1;
+      l.failureStreaks[a] = (l.failureStreaks[a] || 0) + 1;
+      l.successStreaks[a] = 0;
+    }
 
     const attempts = l.attempts[a];
     const successRate = (l.successes[a] || 0) / Math.max(1, attempts);
     const lesson = Math.min(5, intensity * (success ? 1 : .8));
     l.expertise[a] = clamp((l.expertise[a] || 0) + lesson, 0, 100);
-    l.preferences[a] = clamp((l.preferences[a] || 50) + (success ? lesson*.75 : -lesson*.9), 0, 100);
+
+    // Learned policy is bounded so one event cannot permanently dominate behavior.
+    const previousPolicy = l.policies[a] ?? 50;
+    const outcomeShift = success ? lesson * 1.25 : -lesson * 1.55;
+    const streakShift = success
+      ? Math.min(2.5, (l.successStreaks[a] || 0) * .12)
+      : -Math.min(3.5, (l.failureStreaks[a] || 0) * .18);
+    l.policies[a] = clamp(previousPolicy + outcomeShift + streakShift, 0, 100);
+
+    l.preferences[a] = clamp(
+      (l.preferences[a] || 50) + (success ? lesson*.75 : -lesson*.9),
+      0, 100
+    );
     l.adaptation = clamp((l.adaptation || 0) + lesson*.18, 0, 100);
-    l.lastLesson = {tick:state.tick,action:a,success,reason,successRate};
+    l.lastLesson = {
+      tick:state.tick, action:a, success, reason, successRate,
+      policy:l.policies[a], streak:success ? l.successStreaks[a] : l.failureStreaks[a]
+    };
 
     const growth = ACTIONS[a];
-    if (growth && personality()?.develop) personality().develop(n, growth, Math.min(1.5, lesson*.22));
+    if (growth && personality()?.develop) {
+      personality().develop(n, growth, Math.min(1.5, lesson*.22));
+    }
 
     if (!success && memory()?.remember && attempts >= 2) {
       const text = reason || `My attempt to ${a} failed.`;
-      memory().remember(n, `${text} I should adapt next time.`, 'learning', Math.min(3.5, 1+attempts*.12), null, 'fear');
+      memory().remember(
+        n,
+        `${text} I should adapt next time.`,
+        'learning',
+        Math.min(3.5, 1+attempts*.12),
+        null,
+        'fear'
+      );
     }
     return l.lastLesson;
   }
@@ -60,9 +91,20 @@
     const l = ensure(n);
     const expertise = l.expertise[action] || 0;
     const preference = l.preferences[action] ?? 50;
+    const policy = l.policies[action] ?? 50;
     const failures = l.failures[action] || 0;
     const successes = l.successes[action] || 0;
-    return (expertise*.11) + ((preference-50)*.16) - Math.min(10, failures*.16) + Math.min(6, successes*.08);
+    const failureStreak = l.failureStreaks[action] || 0;
+    const successStreak = l.successStreaks[action] || 0;
+
+    // This is the bridge from experience into future decision scoring.
+    return (expertise*.11)
+      + ((preference-50)*.12)
+      + ((policy-50)*.22)
+      - Math.min(10, failures*.16)
+      + Math.min(6, successes*.08)
+      - Math.min(4, failureStreak*.35)
+      + Math.min(3, successStreak*.16);
   }
 
   function goalPressure(n) {
