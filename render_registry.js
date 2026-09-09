@@ -24,8 +24,9 @@
     const payload = context || { state:window.SIM_STATE };
     for (const r of renderers.slice()) {
       // Imported assets own the visual surface once the canonical asset renderer
-      // is active. Legacy procedural world/NPC stages must not paint over it.
-      if (window.EVERGLEN_CANONICAL_ASSET_RENDER && (r.name === 'art-2d' || r.name === 'npc-visuals')) continue;
+      // is active. Legacy procedural stages and the legacy combined asset-world
+      // stage must not paint a second NPC body pass.
+      if (window.EVERGLEN_CANONICAL_ASSET_RENDER && (r.name === 'art-2d' || r.name === 'npc-visuals' || r.name === 'asset-world')) continue;
       try { r.draw(payload); }
       catch (error) { console.error(`Everglen renderer '${r.name}' failed`, error); }
     }
@@ -38,9 +39,8 @@
   }
 
   function canonicalRender() {
-    // The legacy base renderer predates the registry and can directly paint
-    // procedural NPCs. Once imported assets are canonical, skip that base pass
-    // entirely so Pixel Crawler is the sole NPC body renderer.
+    // The legacy base renderer can directly paint procedural NPCs. Once imported
+    // assets are canonical, skip that pass entirely so Pixel Crawler owns NPCs.
     if (baseRender && !window.EVERGLEN_CANONICAL_ASSET_RENDER) {
       try { baseRender(); } catch (error) { console.error('Everglen base renderer failed', error); }
     }
