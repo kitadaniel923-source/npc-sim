@@ -63,6 +63,15 @@
     }).sort((a,b)=>b.score-a.score);
   }
 
+  function syncProfession(n,best){
+    const catalog=window.EVERGLEN_RACES?.PROFESSION_CATALOG;
+    if(!catalog){n.professionId=best.id;n.professionName=n.roleName;n.professionGroup=best.group;return;}
+    const assetId=Object.keys(catalog).find(id=>catalog[id].roleId===best.id);
+    n.professionId=assetId||best.id;
+    n.professionName=assetId?catalog[assetId].name:(roles[best.id]?.name||best.id);
+    n.professionGroup=assetId?catalog[assetId].group:best.group;
+  }
+
   function chooseCareer(n) {
     if (!n.alive || n.age < 18) return;
     if (['king','queen','emperor','empress','duke','count','baron','governor','mayor','heir','prince','princess','prisoner','refugee','rebel'].includes(n.roleId)) return;
@@ -85,10 +94,11 @@
       n.roleName = roles[best.id]?.name || best.id;
       n.roleDescription = roles[best.id]?.desc || '';
       n.job = best.group;
+      syncProfession(n,best);
       if (old && old !== n.roleName) n.career.history.unshift({year:state.year,from:old,to:n.roleName});
       if (n.career.history.length > 6) n.career.history.length = 6;
       n.lastAction = `Chose a life as ${n.roleName}`;
-    }
+    } else if (!n.professionId) syncProfession(n,best);
   }
 
   function updateCareerDrift(n) {
