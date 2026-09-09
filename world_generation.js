@@ -28,8 +28,8 @@
     ['Ancient Ruins','Fallen Watchtower','Sacred Grove','Old Quarry','Bandit Hollow','Stone Circle','Forgotten Shrine','Crystal Grotto'].forEach((name,i)=>state.worldGen.landmarks.push({name,x:rand(-620,620),y:rand(-420,420),discovered:false,type:i%3}));
   }
   function sync(){
-    (state.kingdoms||[]).forEach((k,i)=>{k.cultureId=k.cultureId||cultures[i%cultures.length].id;const c=cultures.find(x=>x.id===k.cultureId)||cultures[0];k.culture=c.name;k.architecture=c.architecture;});
-    (state.settlements||[]).forEach((s,i)=>{const k=state.kingdoms?.find(x=>x.id===s.kingdomId),c=cultures.find(x=>x.id===k?.cultureId)||cultures[i%cultures.length];s.cultureId=c.id;s.culture=c.name;s.architecture=c.architecture;s.environment=biomeAt(s.x,s.y);});
+    (state.kingdoms||[]).forEach((k,i)=>{k.cultureId=k.cultureId||cultures[i%cultures.length].id;const c=cultures.find(x=>x.id===k.cultureId)||cultures[0];k.cultureName=c.name;k.architecture=c.architecture;k.culture=k.culture&&typeof k.culture==='object'?k.culture:{id:c.id,name:c.name,tradition:c.name.toLowerCase(),dominant:c.id,values:{},traditions:[],history:[]};});
+    (state.settlements||[]).forEach((s,i)=>{const k=state.kingdoms?.find(x=>x.id===s.kingdomId),c=cultures.find(x=>x.id===k?.cultureId)||cultures[i%cultures.length];s.cultureId=c.id;s.cultureName=c.name;s.architecture=c.architecture;s.environment=biomeAt(s.x,s.y);s.culture=s.culture&&typeof s.culture==='object'?s.culture:{id:c.id,name:c.name,tradition:c.name.toLowerCase(),dominant:c.id,values:{},traditions:[],history:[]};});
     (state.npcs||[]).forEach(n=>{n.visual=n.visual||{};n.visual.bodyScale=n.visual.bodyScale??(0.82+(n.status||0)*.0015+(n.sex==='M'?.03:0));n.visual.skin=n.visual.skin||pick(['#6b4226','#8c5a36','#b97950','#d49b72','#f0c39d']);n.visual.hair=n.visual.hair||pick(['#251a16','#3a261b','#5a3524','#241f22','#7a5436']);n.visual.hairStyle=n.visual.hairStyle||pick(['short','long','braided','cropped']);});
   }
   buildWorld();sync();
